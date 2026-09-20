@@ -17,15 +17,41 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate iOS project
-        run: bash ./scripts/prepare_ios.sh
+      - name: Prepare iOS project
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./scripts/prepare_ios.sh
+          bash ./scripts/prepare_ios.sh
 
-      - name: Build iOS (unsigned)
+      - name: Configure iOS bundle display name
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Dynamique Ballet Studio" ios/Runner/Info.plist || true
+
+      - name: Build unsigned iOS app
         run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf Payload dynamique-ballet-studio-unsigned.ipa
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload dynamique-ballet-studio-unsigned.ipa
 
       - name: Upload iOS app
         uses: actions/upload-artifact@v4
         with:
           name: dynamique-ballet-studio-ios-app
           path: build/ios/iphoneos/Runner.app
+          if-no-files-found: error
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamique-ballet-studio-unsigned-ipa
+          path: dynamique-ballet-studio-unsigned.ipa
           if-no-files-found: error
