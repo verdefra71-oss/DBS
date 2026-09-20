@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.35.3
+          flutter-version: 3.47.2
           channel: stable
           cache: true
       - name: Create supported Flutter Windows project
@@ -70,22 +70,6 @@ jobs:
           if (Test-Path analysis_options.yaml) { Remove-Item -Force analysis_options.yaml }
           flutter pub get
           if (Test-Path build) { Remove-Item -Recurse -Force build }
-          # Flutter 3.35.3 contains a Windows toolchain default of Visual Studio 16 2019.
-          # The GitHub runner has VS2022, so patch Flutter's tool before building.
-          $flutterRoot = $env:FLUTTER_ROOT
-          $buildWindowsTool = Join-Path $flutterRoot 'packages\flutter_tools\lib\src\windows\build_windows.dart'
-          if (-not (Test-Path $buildWindowsTool)) { throw "build_windows.dart non trovato: $buildWindowsTool" }
-          $text = Get-Content -Raw $buildWindowsTool
-          $patched = $text.Replace("Visual Studio 16 2019", "Visual Studio 17 2022")
-          if ($patched -eq $text) {
-            if ($text -notmatch "Visual Studio 17 2022") { throw "Il generatore Visual Studio non è stato trovato nel Flutter SDK" }
-          } else {
-            Set-Content -Path $buildWindowsTool -Value $patched -NoNewline
-          }
-          # Force Flutter to rebuild flutter_tools from the patched source.
-          $cacheDir = Join-Path $flutterRoot 'bin\cache'
-          Remove-Item (Join-Path $cacheDir 'flutter_tools.stamp') -Force -ErrorAction SilentlyContinue
-          Remove-Item (Join-Path $cacheDir 'flutter_tools.snapshot') -Force -ErrorAction SilentlyContinue
           Remove-Item Env:CMAKE_GENERATOR -ErrorAction SilentlyContinue
           Remove-Item Env:CMAKE_GENERATOR_PLATFORM -ErrorAction SilentlyContinue
           Remove-Item Env:CMAKE_GENERATOR_INSTANCE -ErrorAction SilentlyContinue
