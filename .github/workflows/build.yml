@@ -61,7 +61,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path C:\temp\dynamique-app | Out-Null
           Set-Location C:\temp\dynamique-app
           flutter create --no-pub --platforms=windows --org com.dynamiqueballetstudio --project-name dynamique_ballet_studio .
-          Remove-Item -Recurse -Force lib, assets
+          if (Test-Path lib) { Remove-Item -Recurse -Force lib }
+          if (Test-Path assets) { Remove-Item -Recurse -Force assets }
           Copy-Item -Recurse -Force C:\temp\dyn-source\lib lib
           Copy-Item -Recurse -Force C:\temp\dyn-source\assets assets
           Copy-Item -Force C:\temp\dyn-source\pubspec.yaml pubspec.yaml
