@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
@@ -648,26 +649,43 @@ class _StudentDialogState extends State<StudentDialog> {
   }
 
   Future<void> _createReceiptAndShare(Payment p) async {
+    final fontData = await rootBundle.load('assets/fonts/DejaVuSans.ttf');
+    final euroFont = pw.Font.ttf(fontData);
+    final euroSymbolData = await rootBundle.load('assets/euro_symbol.png');
+    final euroSymbol = pw.MemoryImage(euroSymbolData.buffer.asUint8List());
     final doc = pw.Document();
+
+    pw.Widget euroAmount(String label, double amount) {
+      return pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          pw.Text(label, style: pw.TextStyle(font: euroFont)),
+          pw.SizedBox(width: 3),
+          pw.Image(euroSymbol, width: 11, height: 11),
+          pw.SizedBox(width: 3),
+          pw.Text(amount.toStringAsFixed(2), style: pw.TextStyle(font: euroFont)),
+        ],
+      );
+    }
     doc.addPage(pw.Page(
       pageFormat: PdfPageFormat.a4,
       build: (_) => pw.Padding(
         padding: const pw.EdgeInsets.all(36),
         child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Text('DYNAMIQUE BALLET STUDIO', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+          pw.Text('DYNAMIQUE BALLET STUDIO', style: pw.TextStyle(font: euroFont, fontSize: 22, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 8),
-          pw.Text('Ricevuta acconto', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+          pw.Text('Ricevuta acconto', style: pw.TextStyle(font: euroFont, fontSize: 18, fontWeight: pw.FontWeight.bold)),
           pw.Divider(),
           pw.SizedBox(height: 18),
-          pw.Text('Allievo: ${name.text.trim()}'),
-          pw.Text('Telefono: ${phone.text.trim().isEmpty ? 'non indicato' : phone.text.trim()}'),
+          pw.Text('Allievo: ${name.text.trim()}', style: pw.TextStyle(font: euroFont)),
+          pw.Text('Telefono: ${phone.text.trim().isEmpty ? 'non indicato' : phone.text.trim()}', style: pw.TextStyle(font: euroFont)),
           pw.SizedBox(height: 16),
-          pw.Text('Acconto ricevuto: \u20AC ${p.amount.toStringAsFixed(2)}'),
-          pw.Text('Data: ${p.date}'),
+          euroAmount('Acconto ricevuto:', p.amount),
+          pw.Text('Data: ${p.date}', style: pw.TextStyle(font: euroFont)),
           pw.SizedBox(height: 18),
-          pw.Text('Totale versato: \u20AC ${payments.fold<double>(0, (sum, x) => sum + x.amount).toStringAsFixed(2)}'),
+          euroAmount('Totale versato:', payments.fold<double>(0, (sum, x) => sum + x.amount)),
           pw.SizedBox(height: 28),
-          pw.Text('Grazie per il pagamento.'),
+          pw.Text('Grazie per il pagamento.', style: pw.TextStyle(font: euroFont)),
         ]),
       ),
     ));
