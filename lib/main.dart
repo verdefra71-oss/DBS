@@ -43,6 +43,23 @@ class Payment {
       );
 }
 
+class ReceiptRecord {
+  final String id;
+  final String studentId;
+  final String studentName;
+  final String date;
+  final List<int> bytes;
+  ReceiptRecord({required this.id, required this.studentId, required this.studentName, required this.date, required this.bytes});
+  Map<String, dynamic> toJson() => {'id': id, 'studentId': studentId, 'studentName': studentName, 'date': date, 'bytes': base64Encode(bytes)};
+  factory ReceiptRecord.fromJson(Map<String, dynamic> j) => ReceiptRecord(
+    id: j['id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString(),
+    studentId: j['studentId']?.toString() ?? '',
+    studentName: j['studentName']?.toString() ?? '',
+    date: j['date']?.toString() ?? '',
+    bytes: base64Decode(j['bytes']?.toString() ?? ''),
+  );
+}
+
 class Discipline {
   String name;
   double fee;
@@ -130,6 +147,7 @@ class _HomePageState extends State<HomePage> {
   int tab = 0;
   bool loading = true;
   final List<Student> students = [];
+  final List<ReceiptRecord> receipts = [];
   final List<Discipline> disciplines = [
     Discipline('Danza classica', 0),
     Discipline('Danza moderna', 0),
@@ -175,6 +193,12 @@ class _HomePageState extends State<HomePage> {
         ..addAll((jsonDecode(dj) as List)
             .map((x) => Discipline.fromJson(Map<String, dynamic>.from(x))));
     }
+    final rj = p.getString('receipts');
+    if (rj != null) {
+      receipts
+        ..clear()
+        ..addAll((jsonDecode(rj) as List).map((x) => ReceiptRecord.fromJson(Map<String, dynamic>.from(x))));
+    }
     if (mounted) setState(() => loading = false);
   }
 
@@ -184,6 +208,7 @@ class _HomePageState extends State<HomePage> {
     final p = await SharedPreferences.getInstance();
     await p.setString('students', jsonEncode(students.map((s) => s.toJson()).toList()));
     await p.setString('disciplines', jsonEncode(disciplines.map((d) => d.toJson()).toList()));
+    await p.setString('receipts', jsonEncode(receipts.map((r) => r.toJson()).toList()));
   }
 
   Future<Map<String, dynamic>> _backupData() async {
@@ -192,6 +217,7 @@ class _HomePageState extends State<HomePage> {
       'exportedAt': DateTime.now().toIso8601String(),
       'students': students.map((s) => s.toJson()).toList(),
       'disciplines': disciplines.map((d) => d.toJson()).toList(),
+      'receipts': receipts.map((r) => r.toJson()).toList(),
     };
   }
 
@@ -221,6 +247,17 @@ class _HomePageState extends State<HomePage> {
           disciplines.add(incoming);
         }
       }
+      final importedReceipts = (data['receipts'] as List? ?? const [])
+          .map((x) => ReceiptRecord.fromJson(Map<String, dynamic>.from(x)))
+          .toList();
+      for (final incoming in importedReceipts) {
+        final idx = receipts.indexWhere((r) => r.id == incoming.id);
+        if (idx >= 0) {
+          receipts[idx] = incoming;
+        } else {
+          receipts.add(incoming);
+        }
+      }
       final importedStudents = (data['students'] as List? ?? const [])
           .map((x) => Student.fromJson(Map<String, dynamic>.from(x)))
           .toList();
@@ -245,7 +282,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> openStudent([Student? existing]) async {
     final result = await showDialog<Student>(
       context: context,
-      builder: (_) => StudentDialog(student: existing, disciplines: disciplines),
+      builder: (_) => StudentDialog(student: existing, disciplines: disciplines, onReceiptCreated: (receipt) async { receipts.add(receipt); await save(); if (mounted) setState(() {}); }),
     );
     if (result == null) return;
     setState(() {
@@ -266,6 +303,7 @@ class _HomePageState extends State<HomePage> {
     }
     final pages = <Widget>[
       Dashboard(students: students, onAdd: openStudent, onBackup: exportBackup, onImport: importBackupMerge),
+      ReceiptsPage(receipts: receipts, onDelete: (r) async { receipts.remove(r); await save(); setState(() {}); }),
       StudentsPage(
         students: students,
         onEdit: openStudent,
@@ -294,6 +332,7 @@ class _HomePageState extends State<HomePage> {
               destinations: const [
                 NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Riepilogo'),
                 NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Iscritti'),
+                NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Ricevute'),
                 NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Discipline'),
               ],
             ),
@@ -314,6 +353,7 @@ class _HomePageState extends State<HomePage> {
                 destinations: const [
                   NavigationRailDestination(icon: Icon(Icons.dashboard), label: Text('Riepilogo')),
                   NavigationRailDestination(icon: Icon(Icons.people), label: Text('Iscritti')),
+                  NavigationRailDestination(icon: Icon(Icons.receipt_long), label: Text('Ricevute')),
                   NavigationRailDestination(icon: Icon(Icons.menu_book), label: Text('Discipline')),
                 ],
               ),
@@ -386,13 +426,19 @@ class Dashboard extends StatelessWidget {
                       const SizedBox(height: 8),
                       const Text('Inserisci nuovi allievi, assegna le discipline e registra quota, acconti, saggio e vestiti.'),
                       const SizedBox(height: 18),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
+                      Row(
                         children: [
-                          FilledButton.icon(onPressed: () => onAdd(), icon: const Icon(Icons.person_add), label: const Text('NUOVO ISCRITTO')),
-                          OutlinedButton.icon(onPressed: onBackup, icon: const Icon(Icons.backup), label: const Text('CREA BACKUP')),
-                          OutlinedButton.icon(onPressed: onImport, icon: const Icon(Icons.file_download), label: const Text('IMPORTA / AGGIORNA')),
+                          Expanded(child: FilledButton.icon(onPressed: () => onAdd(), icon: const Icon(Icons.person_add), label: const Text('NUOVO ISCRITTO'))),
+                          const SizedBox(width: 8),
+                          PopupMenuButton<String>(
+                            tooltip: 'Backup dati',
+                            icon: const Icon(Icons.more_horiz),
+                            onSelected: (v) { if (v == 'backup') onBackup(); if (v == 'import') onImport(); },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(value: 'backup', child: ListTile(leading: Icon(Icons.backup), title: Text('Crea backup'), dense: true)),
+                              PopupMenuItem(value: 'import', child: ListTile(leading: Icon(Icons.file_download), title: Text('Importa / aggiorna'), dense: true)),
+                            ],
+                          ),
                         ],
                       ),
                     ],
@@ -451,6 +497,23 @@ class StatCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class ReceiptsPage extends StatelessWidget {
+  final List<ReceiptRecord> receipts;
+  final Future<void> Function(ReceiptRecord) onDelete;
+  const ReceiptsPage({super.key, required this.receipts, required this.onDelete});
+  Future<void> _share(ReceiptRecord r) async {
+    await Share.shareXFiles([XFile.fromData(r.bytes, name: 'ricevuta_acconto_${r.studentName.replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_')}.pdf', mimeType: 'application/pdf')], subject: 'Ricevuta acconto - ${r.studentName}');
+  }
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    const Header(title: 'Ricevute acconti'),
+    Expanded(child: receipts.isEmpty ? const Center(child: Text('Nessuna ricevuta conservata.')) : ListView.builder(padding: const EdgeInsets.all(16), itemCount: receipts.length, itemBuilder: (_, i) {
+      final r = receipts[receipts.length - 1 - i];
+      return Card(child: ListTile(leading: const Icon(Icons.picture_as_pdf, color: kRed), title: Text(r.studentName), subtitle: Text('Ricevuta del ${r.date}'), trailing: Wrap(children: [IconButton(tooltip: 'Invia', onPressed: () => _share(r), icon: const Icon(Icons.share)), IconButton(tooltip: 'Elimina', onPressed: () => onDelete(r), icon: const Icon(Icons.delete_outline))])));
+    }))
+  ]);
 }
 
 class StudentsPage extends StatefulWidget {
@@ -590,7 +653,8 @@ class DisciplinesPage extends StatelessWidget {
 class StudentDialog extends StatefulWidget {
   final Student? student;
   final List<Discipline> disciplines;
-  const StudentDialog({super.key, this.student, required this.disciplines});
+  final Future<void> Function(ReceiptRecord receipt) onReceiptCreated;
+  const StudentDialog({super.key, this.student, required this.disciplines, required this.onReceiptCreated});
   @override
   State<StudentDialog> createState() => _StudentDialogState();
 }
@@ -691,6 +755,14 @@ class _StudentDialogState extends State<StudentDialog> {
     ));
     final bytes = await doc.save();
     final safeName = name.text.trim().replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
+    final receipt = ReceiptRecord(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      studentId: widget.student?.id ?? '',
+      studentName: name.text.trim(),
+      date: p.date,
+      bytes: bytes,
+    );
+    await widget.onReceiptCreated(receipt);
     await Share.shareXFiles([
       XFile.fromData(bytes, name: 'ricevuta_acconto_$safeName.pdf', mimeType: 'application/pdf'),
     ], subject: 'Ricevuta acconto - ${name.text.trim()}', text: phone.text.trim().isEmpty ? 'Ricevuta acconto Dynamique Ballet Studio' : 'Ricevuta acconto Dynamique Ballet Studio per ${name.text.trim()} - ${phone.text.trim()}');
