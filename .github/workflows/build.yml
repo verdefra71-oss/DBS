@@ -18,10 +18,17 @@ jobs:
           channel: stable
           flutter-version: '3.35.3'
           cache: true
-      - name: Generate Flutter platform files
-        run: flutter create --platforms=android,windows .
+      - name: Verify Flutter project
+        run: |
+          test -f pubspec.yaml
+          test -f lib/main.dart
+          flutter --version
+      - name: Clean
+        run: flutter clean
       - name: Get dependencies
         run: flutter pub get
+      - name: Verify dependencies
+        run: flutter pub deps
       - name: Build APK
         run: flutter build apk --release
       - name: Upload APK
@@ -44,8 +51,10 @@ jobs:
           cache: true
       - name: Enable Windows
         run: flutter config --enable-windows-desktop
-      - name: Generate Flutter platform files
+      - name: Generate Windows platform files
         run: flutter create --platforms=windows .
+      - name: Clean
+        run: flutter clean
       - name: Get dependencies
         run: flutter pub get
       - name: Build Windows
