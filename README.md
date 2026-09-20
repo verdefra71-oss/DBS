@@ -1,3 +1,4 @@
-# Dynamique Ballet Studio v9
+# Dynamique Ballet Studio
 
-Fix build APK: dependencies are declared explicitly and GitHub Actions runs flutter clean, flutter pub get, flutter pub deps before building. Added cross_file for XFile used by share_plus.
+Version GitHub v10. Il progetto include il codice Flutter e il workflow GitHub.
+Il workflow crea automaticamente una struttura Flutter Android/Windows ufficiale e supportata con `flutter create` prima della compilazione, evitando l'errore "unsupported Gradle project".
