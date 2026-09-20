@@ -1,6 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart';
 
 const kRed = Color(0xFFC62828);
 const kDark = Color(0xFF424242);
@@ -180,6 +184,62 @@ class _HomePageState extends State<HomePage> {
     await p.setString('disciplines', jsonEncode(disciplines.map((d) => d.toJson()).toList()));
   }
 
+  Future<Map<String, dynamic>> _backupData() async {
+    return {
+      'format': 'dynamique_ballet_studio_backup_v2',
+      'exportedAt': DateTime.now().toIso8601String(),
+      'students': students.map((s) => s.toJson()).toList(),
+      'disciplines': disciplines.map((d) => d.toJson()).toList(),
+    };
+  }
+
+  Future<void> exportBackup() async {
+    final data = await _backupData();
+    final json = const JsonEncoder.withIndent('  ').convert(data);
+    final fileName = 'dynamique_ballet_backup_${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}.json';
+    await Share.shareXFiles([
+      XFile.fromData(utf8.encode(json), name: fileName, mimeType: 'application/json'),
+    ], subject: 'Backup Dynamique Ballet Studio');
+  }
+
+  Future<void> importBackupMerge() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json'], withData: true);
+    if (result == null || result.files.single.bytes == null) return;
+    try {
+      final data = jsonDecode(utf8.decode(result.files.single.bytes!)) as Map<String, dynamic>;
+      final importedDisciplines = (data['disciplines'] as List? ?? const [])
+          .map((x) => Discipline.fromJson(Map<String, dynamic>.from(x)))
+          .toList();
+      for (final incoming in importedDisciplines) {
+        final idx = disciplines.indexWhere((d) => d.name.toLowerCase() == incoming.name.toLowerCase());
+        if (idx >= 0) {
+          disciplines[idx].fee = incoming.fee;
+          disciplines[idx].name = incoming.name;
+        } else {
+          disciplines.add(incoming);
+        }
+      }
+      final importedStudents = (data['students'] as List? ?? const [])
+          .map((x) => Student.fromJson(Map<String, dynamic>.from(x)))
+          .toList();
+      for (final incoming in importedStudents) {
+        final idx = students.indexWhere((s) => s.id == incoming.id || (s.name.trim().toLowerCase() == incoming.name.trim().toLowerCase() && s.phone.trim() == incoming.phone.trim()));
+        if (idx >= 0) {
+          students[idx] = incoming; // aggiorna il record esistente, non lo sostituisce globalmente
+        } else {
+          students.add(incoming);
+        }
+      }
+      await save();
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup importato come aggiornamento: i dati esistenti sono stati mantenuti.')));
+      }
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup non valido o non leggibile.')));
+    }
+  }
+
   Future<void> openStudent([Student? existing]) async {
     final result = await showDialog<Student>(
       context: context,
@@ -203,7 +263,7 @@ class _HomePageState extends State<HomePage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final pages = <Widget>[
-      Dashboard(students: students, onAdd: openStudent),
+      Dashboard(students: students, onAdd: openStudent, onBackup: exportBackup, onImport: importBackupMerge),
       StudentsPage(
         students: students,
         onEdit: openStudent,
@@ -287,7 +347,9 @@ class Header extends StatelessWidget {
 class Dashboard extends StatelessWidget {
   final List<Student> students;
   final Future<void> Function([Student?]) onAdd;
-  const Dashboard({super.key, required this.students, required this.onAdd});
+  final VoidCallback onBackup;
+  final VoidCallback onImport;
+  const Dashboard({super.key, required this.students, required this.onAdd, required this.onBackup, required this.onImport});
 
   @override
   Widget build(BuildContext context) {
@@ -322,10 +384,14 @@ class Dashboard extends StatelessWidget {
                       const SizedBox(height: 8),
                       const Text('Inserisci nuovi allievi, assegna le discipline e registra quota, acconti, saggio e vestiti.'),
                       const SizedBox(height: 18),
-                      FilledButton.icon(
-                        onPressed: () => onAdd(),
-                        icon: const Icon(Icons.person_add),
-                        label: const Text('INSERISCI NUOVO ISCRITTO'),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          FilledButton.icon(onPressed: () => onAdd(), icon: const Icon(Icons.person_add), label: const Text('NUOVO ISCRITTO')),
+                          OutlinedButton.icon(onPressed: onBackup, icon: const Icon(Icons.backup), label: const Text('CREA BACKUP')),
+                          OutlinedButton.icon(onPressed: onImport, icon: const Icon(Icons.file_download), label: const Text('IMPORTA / AGGIORNA')),
+                        ],
                       ),
                     ],
                   ),
@@ -580,6 +646,37 @@ class _StudentDialogState extends State<StudentDialog> {
     participation.text = fee == 0 ? '' : fee.toStringAsFixed(2);
   }
 
+  Future<void> _createReceiptAndShare(Payment p) async {
+    final doc = pw.Document();
+    doc.addPage(pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      build: (_) => pw.Padding(
+        padding: const pw.EdgeInsets.all(36),
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Text('DYNAMIQUE BALLET STUDIO', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 8),
+          pw.Text('Ricevuta acconto', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+          pw.Divider(),
+          pw.SizedBox(height: 18),
+          pw.Text('Allievo: ${name.text.trim()}'),
+          pw.Text('Telefono: ${phone.text.trim().isEmpty ? 'non indicato' : phone.text.trim()}'),
+          pw.SizedBox(height: 16),
+          pw.Text('Acconto ricevuto: € ${p.amount.toStringAsFixed(2)}'),
+          pw.Text('Data: ${p.date}'),
+          pw.SizedBox(height: 18),
+          pw.Text('Totale versato: € ${payments.fold<double>(0, (sum, x) => sum + x.amount).toStringAsFixed(2)}'),
+          pw.SizedBox(height: 28),
+          pw.Text('Grazie per il pagamento.'),
+        ]),
+      ),
+    ));
+    final bytes = await doc.save();
+    final safeName = name.text.trim().replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
+    await Share.shareXFiles([
+      XFile.fromData(bytes, name: 'ricevuta_acconto_$safeName.pdf', mimeType: 'application/pdf'),
+    ], subject: 'Ricevuta acconto - ${name.text.trim()}', text: phone.text.trim().isEmpty ? 'Ricevuta acconto Dynamique Ballet Studio' : 'Ricevuta acconto Dynamique Ballet Studio per ${name.text.trim()} - ${phone.text.trim()}');
+  }
+
   @override
   Widget build(BuildContext context) {
     final total = valueOf(participation) + valueOf(showCost) + valueOf(clothes);
@@ -643,8 +740,10 @@ class _StudentDialogState extends State<StudentDialog> {
                     final amount = valueOf(payment);
                     if (amount <= 0) return;
                     setState(() {
-                      payments.add(Payment(amount: amount, date: _today()));
+                      final newPayment = Payment(amount: amount, date: _today());
+                      payments.add(newPayment);
                       payment.clear();
+                      Future.microtask(() => _createReceiptAndShare(newPayment));
                     });
                   },
                   icon: const Icon(Icons.add),
