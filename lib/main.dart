@@ -304,7 +304,6 @@ class _HomePageState extends State<HomePage> {
     }
     final pages = <Widget>[
       Dashboard(students: students, onAdd: openStudent, onBackup: exportBackup, onImport: importBackupMerge),
-      ReceiptsPage(receipts: receipts, onDelete: (r) async { receipts.remove(r); await save(); setState(() {}); }),
       StudentsPage(
         students: students,
         onEdit: openStudent,
@@ -313,6 +312,7 @@ class _HomePageState extends State<HomePage> {
           save();
         },
       ),
+      ReceiptsPage(receipts: receipts, onDelete: (r) async { receipts.remove(r); await save(); setState(() {}); }),
       DisciplinesPage(
         disciplines: disciplines,
         onChanged: () {
