@@ -1,9 +1,3 @@
-# Dynamique Ballet Studio v6
+# Dynamique Ballet Studio v9
 
-Aggiornamenti:
-- Discipline completamente modificabili: nome e quota mensile.
-- Possibilità di aggiungere nuove discipline.
-- Interfaccia responsive per smartphone: navigazione inferiore, header ridotto e schede adattate allo schermo.
-- Schermate iscritti e discipline ottimizzate per display stretti.
-- Gestione iscritti, quote, acconti, saggio e vestiti mantenuta.
-- GitHub Actions per build APK e Windows.
+Fix build APK: dependencies are declared explicitly and GitHub Actions runs flutter clean, flutter pub get, flutter pub deps before building. Added cross_file for XFile used by share_plus.
