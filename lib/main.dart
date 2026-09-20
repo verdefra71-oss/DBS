@@ -369,9 +369,9 @@ class Dashboard extends StatelessWidget {
                 runSpacing: 12,
                 children: [
                   StatCard('Iscritti', '${students.length}', Icons.people),
-                  StatCard('Totale quote', '€ ${total.toStringAsFixed(2)}', Icons.euro),
-                  StatCard('Incassato', '€ ${paid.toStringAsFixed(2)}', Icons.payments),
-                  StatCard('Da incassare', '€ ${balance.toStringAsFixed(2)}', Icons.account_balance_wallet),
+                  StatCard('Totale quote', '\u20AC ${total.toStringAsFixed(2)}', Icons.euro),
+                  StatCard('Incassato', '\u20AC ${paid.toStringAsFixed(2)}', Icons.payments),
+                  StatCard('Da incassare', '\u20AC ${balance.toStringAsFixed(2)}', Icons.account_balance_wallet),
                 ],
               ),
               const SizedBox(height: 24),
@@ -413,7 +413,7 @@ class Dashboard extends StatelessWidget {
                           title: Text(s.name),
                           subtitle: Text(s.disciplines.join(' • ')),
                           trailing: Text(
-                            'Saldo € ${s.balance.toStringAsFixed(2)}',
+                            'Saldo \u20AC ${s.balance.toStringAsFixed(2)}',
                             style: TextStyle(fontWeight: FontWeight.bold, color: s.balance <= 0 ? Colors.green : kRed),
                           ),
                         ),
@@ -497,7 +497,7 @@ class _StudentsPageState extends State<StudentsPage> {
                       child: ListTile(
                         title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text(
-                          '${s.disciplines.join(' • ')}\nTotale € ${s.total.toStringAsFixed(2)}  •  Versato € ${s.paid.toStringAsFixed(2)}  •  Saldo € ${s.balance.toStringAsFixed(2)}',
+                          '${s.disciplines.join(' • ')}\nTotale \u20AC ${s.total.toStringAsFixed(2)}  •  Versato \u20AC ${s.paid.toStringAsFixed(2)}  •  Saldo \u20AC ${s.balance.toStringAsFixed(2)}',
                         ),
                         isThreeLine: true,
                         trailing: Wrap(
@@ -533,7 +533,7 @@ class DisciplinesPage extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             TextField(controller: name, decoration: const InputDecoration(labelText: 'Nome disciplina')),
             const SizedBox(height: 12),
-            TextField(controller: fee, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Quota mensile (€)')),
+            TextField(controller: fee, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Quota mensile (\u20AC)')),
           ]),
         ),
         actions: [
@@ -567,7 +567,7 @@ class DisciplinesPage extends StatelessWidget {
                 child: ListTile(
                   leading: const Icon(Icons.music_note, color: kRed),
                   title: Text(d.name),
-                  subtitle: Text('Quota mensile: € ${d.fee.toStringAsFixed(2)}'),
+                  subtitle: Text('Quota mensile: \u20AC ${d.fee.toStringAsFixed(2)}'),
                   trailing: IconButton(icon: const Icon(Icons.edit, color: kRed), tooltip: 'Modifica', onPressed: () => _editDiscipline(context, d)),
                   onTap: () => _editDiscipline(context, d),
                 ),
@@ -662,10 +662,10 @@ class _StudentDialogState extends State<StudentDialog> {
           pw.Text('Allievo: ${name.text.trim()}'),
           pw.Text('Telefono: ${phone.text.trim().isEmpty ? 'non indicato' : phone.text.trim()}'),
           pw.SizedBox(height: 16),
-          pw.Text('Acconto ricevuto: € ${p.amount.toStringAsFixed(2)}'),
+          pw.Text('Acconto ricevuto: \u20AC ${p.amount.toStringAsFixed(2)}'),
           pw.Text('Data: ${p.date}'),
           pw.SizedBox(height: 18),
-          pw.Text('Totale versato: € ${payments.fold<double>(0, (sum, x) => sum + x.amount).toStringAsFixed(2)}'),
+          pw.Text('Totale versato: \u20AC ${payments.fold<double>(0, (sum, x) => sum + x.amount).toStringAsFixed(2)}'),
           pw.SizedBox(height: 28),
           pw.Text('Grazie per il pagamento.'),
         ]),
@@ -725,16 +725,16 @@ class _StudentDialogState extends State<StudentDialog> {
                   TextField(
                     controller: participation,
                     readOnly: true,
-                    decoration: const InputDecoration(labelText: 'Quota mensile (€)', helperText: 'Calcolata automaticamente dalle discipline selezionate'),
+                    decoration: const InputDecoration(labelText: 'Quota mensile (\u20AC)', helperText: 'Calcolata automaticamente dalle discipline selezionate'),
                   ),
-                  TextField(controller: showCost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Costo saggio (€)')),
-                  TextField(controller: clothes, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Vestiti (€)')),
+                  TextField(controller: showCost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Costo saggio (\u20AC)')),
+                  TextField(controller: clothes, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Vestiti (\u20AC)')),
                 ];
                 return c.maxWidth < 520 ? Column(children: [fields[0], const SizedBox(height: 10), fields[1], const SizedBox(height: 10), fields[2]]) : Row(children: [for (int i=0;i<fields.length;i++) ...[Expanded(child: fields[i]), if(i<fields.length-1) const SizedBox(width: 10)]]);
               }),
               const SizedBox(height: 18),
               Row(children: [
-                Expanded(child: TextField(controller: payment, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Importo acconto (€)'))),
+                Expanded(child: TextField(controller: payment, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Importo acconto (\u20AC)'))),
                 const SizedBox(width: 10),
                 FilledButton.icon(
                   onPressed: () {
@@ -757,7 +757,7 @@ class _StudentDialogState extends State<StudentDialog> {
                   (entry) => ListTile(
                     dense: true,
                     leading: const Icon(Icons.payments, color: kRed),
-                    title: Text('Acconto € ${entry.value.amount.toStringAsFixed(2)}'),
+                    title: Text('Acconto \u20AC ${entry.value.amount.toStringAsFixed(2)}'),
                     subtitle: Text(entry.value.date),
                     trailing: IconButton(
                       onPressed: () => setState(() => payments.removeAt(entry.key)),
@@ -768,7 +768,7 @@ class _StudentDialogState extends State<StudentDialog> {
               ],
               const SizedBox(height: 12),
               Text(
-                'Totale: € ${total.toStringAsFixed(2)}    Versato: € ${paid.toStringAsFixed(2)}    Saldo: € ${(total - paid).toStringAsFixed(2)}',
+                'Totale: \u20AC ${total.toStringAsFixed(2)}    Versato: \u20AC ${paid.toStringAsFixed(2)}    Saldo: \u20AC ${(total - paid).toStringAsFixed(2)}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
