@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -226,7 +227,7 @@ class _HomePageState extends State<HomePage> {
     final json = const JsonEncoder.withIndent('  ').convert(data);
     final fileName = 'dynamique_ballet_backup_${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}.json';
     await Share.shareXFiles([
-      XFile.fromData(utf8.encode(json), name: fileName, mimeType: 'application/json'),
+      XFile.fromData(Uint8List.fromList(utf8.encode(json)), name: fileName, mimeType: 'application/json'),
     ], subject: 'Backup Dynamique Ballet Studio');
   }
 
@@ -504,7 +505,7 @@ class ReceiptsPage extends StatelessWidget {
   final Future<void> Function(ReceiptRecord) onDelete;
   const ReceiptsPage({super.key, required this.receipts, required this.onDelete});
   Future<void> _share(ReceiptRecord r) async {
-    await Share.shareXFiles([XFile.fromData(r.bytes, name: 'ricevuta_acconto_${r.studentName.replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_')}.pdf', mimeType: 'application/pdf')], subject: 'Ricevuta acconto - ${r.studentName}');
+    await Share.shareXFiles([XFile.fromData(Uint8List.fromList(r.bytes), name: 'ricevuta_acconto_${r.studentName.replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_')}.pdf', mimeType: 'application/pdf')], subject: 'Ricevuta acconto - ${r.studentName}');
   }
   @override
   Widget build(BuildContext context) => Column(children: [
