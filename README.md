@@ -1,23 +1,9 @@
-# Dynamique Ballet Studio
+# Dynamique Ballet Studio v6
 
-App Flutter per la gestione della scuola di danza **Dynamique Ballet Studio**.
-
-## Funzioni
-- Inserimento e modifica iscritti
-- Discipline: Danza classica, Danza moderna, Hip Hop, Contemporaneo, Salsa New York, Salsa cubana, Bachata, Hells, Aerial Hoop
-- Quota di partecipazione
-- Acconti multipli
-- Costo saggio
-- Costo vestiti
-- Calcolo automatico di totale, versato e saldo
-- Salvataggio locale
-- Grafica grigio e rosso con logo della scuola
-
-## GitHub Actions
-Il progetto contiene `.github/workflows/build.yml`.
-
-Dopo aver caricato il progetto su GitHub, aprire **Actions** e avviare **Build Dynamique Ballet Studio**. Il workflow genera automaticamente:
-- APK Android (`dynamique-ballet-studio-apk`)
-- Build Windows (`dynamique-ballet-studio-windows`)
-
-Il workflow crea anche i file di piattaforma Flutter mancanti, quindi il repository può partire da questo progetto senza dover aggiungere manualmente le cartelle `android` e `windows`.
+Aggiornamenti:
+- Discipline completamente modificabili: nome e quota mensile.
+- Possibilità di aggiungere nuove discipline.
+- Interfaccia responsive per smartphone: navigazione inferiore, header ridotto e schede adattate allo schermo.
+- Schermate iscritti e discipline ottimizzate per display stretti.
+- Gestione iscritti, quote, acconti, saggio e vestiti mantenuta.
+- GitHub Actions per build APK e Windows.
