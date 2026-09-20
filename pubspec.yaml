@@ -18,4 +18,5 @@ dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/fonts/DejaVuSans.ttf
     - assets/logo.jpg
