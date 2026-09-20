@@ -1,22 +1,15 @@
 # Supporto iOS - Dynamique Ballet Studio
 
-Il progetto è predisposto per essere compilato su macOS/GitHub Actions per iOS.
+Il progetto è predisposto per la compilazione iOS su macOS/GitHub Actions.
 
-## Build automatica
+Il workflow **Build iOS - Dynamique Ballet Studio**:
+1. genera la cartella `ios/` con Flutter;
+2. installa le dipendenze;
+3. costruisce `Runner.app` in Release;
+4. crea anche un file `dynamique-ballet-studio-unsigned.ipa`.
 
-In GitHub: **Actions → Build iOS - Dynamique Ballet Studio → Run workflow**.
+### Importante per iPhone
 
-Il workflow:
-1. installa Flutter 3.35.3;
-2. genera automaticamente la cartella `ios/` mantenendo codice e grafica dell'app;
-3. esegue `flutter pub get`;
-4. crea una build iOS Release senza firma;
-5. pubblica `Runner.app` come artifact.
+L'IPA senza firma è utile per verificare la build, ma **non può essere installato e avviato normalmente su un iPhone**. Per l'installazione reale serve la firma Apple (Development, Ad Hoc o TestFlight).
 
-## App Store / TestFlight
-
-Per distribuire l'app su iPhone tramite TestFlight o App Store occorrono un Apple Developer Account, un Bundle Identifier e la firma Apple (certificato/provisioning). Questi dati non vengono inseriti nel progetto per evitare di esporre credenziali.
-
-## Funzioni usate dall'app
-
-L'app utilizza plugin Flutter compatibili con iOS per salvataggio locale, selezione file, condivisione e generazione PDF. Non sono state aggiunte richieste di permessi iOS non necessarie.
+Il progetto non contiene certificati o profili personali Apple.
