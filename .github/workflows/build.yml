@@ -70,8 +70,23 @@ jobs:
           if (Test-Path analysis_options.yaml) { Remove-Item -Force analysis_options.yaml }
           flutter pub get
           if (Test-Path build) { Remove-Item -Recurse -Force build }
-          $env:CMAKE_GENERATOR = "Visual Studio 17 2022"
-          $env:CMAKE_GENERATOR_PLATFORM = "x64"
+          # GitHub Windows runners may expose CMAKE_GENERATOR=Visual Studio 16 2019.
+          # Remove it and explicitly initialize the installed VS2022 MSVC toolchain.
+          Remove-Item Env:CMAKE_GENERATOR -ErrorAction SilentlyContinue
+          Remove-Item Env:CMAKE_GENERATOR_PLATFORM -ErrorAction SilentlyContinue
+          Remove-Item Env:CMAKE_GENERATOR_INSTANCE -ErrorAction SilentlyContinue
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          if (-not (Test-Path $vswhere)) { throw "vswhere.exe non trovato" }
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { throw "Visual Studio 2022 con strumenti C++ non trovato" }
+          $vcvars = Join-Path $vsPath 'VC\Auxiliary\Build\vcvars64.bat'
+          if (-not (Test-Path $vcvars)) { throw "vcvars64.bat non trovato: $vcvars" }
+          cmd.exe /c "`"$vcvars`" > nul && set" | ForEach-Object {
+            if ($_ -match '^(.*?)=(.*)$') { Set-Item -Path ("Env:" + $matches[1]) -Value $matches[2] }
+          }
+          # Use Ninja so CMake cannot fall back to the unavailable VS2019 generator.
+          $env:CMAKE_GENERATOR = "Ninja"
+          $env:CMAKE_GENERATOR_PLATFORM = ""
           flutter config --enable-windows-desktop
           flutter build windows --release
       - name: Upload Windows
