@@ -199,27 +199,46 @@ class _HomePageState extends State<HomePage> {
         },
       ),
     ];
-    return Scaffold(
-      body: Row(
-        children: [
-          NavigationRail(
-            selectedIndex: tab,
-            onDestinationSelected: (i) => setState(() => tab = i),
-            labelType: NavigationRailLabelType.all,
-            backgroundColor: kDark,
-            selectedIconTheme: const IconThemeData(color: Colors.white),
-            unselectedIconTheme: const IconThemeData(color: Colors.white70),
-            selectedLabelTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            unselectedLabelTextStyle: const TextStyle(color: Colors.white70),
-            destinations: const [
-              NavigationRailDestination(icon: Icon(Icons.dashboard), label: Text('Riepilogo')),
-              NavigationRailDestination(icon: Icon(Icons.people), label: Text('Iscritti')),
-              NavigationRailDestination(icon: Icon(Icons.menu_book), label: Text('Discipline')),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 650;
+        if (compact) {
+          return Scaffold(
+            body: SafeArea(child: pages[tab]),
+            bottomNavigationBar: NavigationBar(
+              selectedIndex: tab,
+              onDestinationSelected: (i) => setState(() => tab = i),
+              destinations: const [
+                NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Riepilogo'),
+                NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Iscritti'),
+                NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Discipline'),
+              ],
+            ),
+          );
+        }
+        return Scaffold(
+          body: Row(
+            children: [
+              NavigationRail(
+                selectedIndex: tab,
+                onDestinationSelected: (i) => setState(() => tab = i),
+                labelType: NavigationRailLabelType.all,
+                backgroundColor: kDark,
+                selectedIconTheme: const IconThemeData(color: Colors.white),
+                unselectedIconTheme: const IconThemeData(color: Colors.white70),
+                selectedLabelTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                unselectedLabelTextStyle: const TextStyle(color: Colors.white70),
+                destinations: const [
+                  NavigationRailDestination(icon: Icon(Icons.dashboard), label: Text('Riepilogo')),
+                  NavigationRailDestination(icon: Icon(Icons.people), label: Text('Iscritti')),
+                  NavigationRailDestination(icon: Icon(Icons.menu_book), label: Text('Discipline')),
+                ],
+              ),
+              Expanded(child: pages[tab]),
             ],
           ),
-          Expanded(child: pages[tab]),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -229,16 +248,15 @@ class Header extends StatelessWidget {
   const Header({super.key, required this.title});
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 650;
     return Container(
       color: kDark,
-      padding: const EdgeInsets.fromLTRB(28, 18, 28, 18),
+      padding: EdgeInsets.fromLTRB(compact ? 14 : 24, compact ? 10 : 16, compact ? 14 : 24, compact ? 10 : 16),
       child: Row(
         children: [
-          Image.asset('assets/logo.jpg', height: 70, width: 190, fit: BoxFit.contain),
-          const SizedBox(width: 24),
-          Expanded(
-            child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-          ),
+          Image.asset('assets/logo.jpg', height: compact ? 44 : 62, width: compact ? 118 : 165, fit: BoxFit.contain),
+          SizedBox(width: compact ? 10 : 18),
+          Expanded(child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: compact ? 17 : 24, fontWeight: FontWeight.bold))),
         ],
       ),
     );
@@ -260,7 +278,7 @@ class Dashboard extends StatelessWidget {
         const Header(title: 'Gestione Scuola di Danza'),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.all(28),
+            padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 650 ? 12 : 24),
             children: [
               Wrap(
                 spacing: 12,
@@ -328,11 +346,12 @@ class StatCard extends StatelessWidget {
   const StatCard(this.title, this.value, this.icon, {super.key});
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 650;
     return SizedBox(
-      width: 220,
+      width: compact ? (MediaQuery.sizeOf(context).width - 36) / 2 : 220,
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(compact ? 12 : 18),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(icon, color: kRed, size: 30),
             const SizedBox(height: 8),
@@ -363,20 +382,17 @@ class _StudentsPageState extends State<StudentsPage> {
       children: [
         const Header(title: 'Iscritti'),
         Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
+          padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 650 ? 12 : 20),
+          child: Column(
             children: [
-              Expanded(
-                child: TextField(
-                  decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cerca iscritto...'),
-                  onChanged: (value) => setState(() => query = value),
-                ),
+              TextField(
+                decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cerca iscritto...'),
+                onChanged: (value) => setState(() => query = value),
               ),
-              const SizedBox(width: 12),
-              FilledButton.icon(
-                onPressed: () => widget.onEdit(null),
-                icon: const Icon(Icons.add),
-                label: const Text('Nuovo iscritto'),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.icon(onPressed: () => widget.onEdit(null), icon: const Icon(Icons.add), label: const Text('Nuovo iscritto')),
               ),
             ],
           ),
@@ -417,6 +433,39 @@ class DisciplinesPage extends StatelessWidget {
   final VoidCallback onChanged;
   const DisciplinesPage({super.key, required this.disciplines, required this.onChanged});
 
+  Future<void> _editDiscipline(BuildContext context, Discipline d) async {
+    final name = TextEditingController(text: d.name);
+    final fee = TextEditingController(text: d.fee == 0 ? '' : d.fee.toString());
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(d.name.isEmpty ? 'Nuova disciplina' : 'Modifica disciplina'),
+        content: SizedBox(
+          width: 420,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: name, decoration: const InputDecoration(labelText: 'Nome disciplina')),
+            const SizedBox(height: 12),
+            TextField(controller: fee, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Quota mensile (€)')),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Annulla')),
+          FilledButton(onPressed: () {
+            final newName = name.text.trim();
+            if (newName.isEmpty) return;
+            d.name = newName;
+            d.fee = double.tryParse(fee.text.replaceAll(',', '.')) ?? 0;
+            if (!disciplines.contains(d)) disciplines.add(d);
+            Navigator.pop(dialogContext, true);
+          }, child: const Text('Salva')),
+        ],
+      ),
+    );
+    name.dispose();
+    fee.dispose();
+    if (ok == true) onChanged();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -424,54 +473,20 @@ class DisciplinesPage extends StatelessWidget {
         const Header(title: 'Discipline e quote mensili'),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 650 ? 12 : 20),
             children: [
-              ...disciplines.map(
-                (d) => Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.music_note, color: kRed),
-                    title: Text(d.name),
-                    trailing: SizedBox(
-                      width: 120,
-                      child: Text('€ ${d.fee.toStringAsFixed(2)} / mese', textAlign: TextAlign.end),
-                    ),
-                  ),
+              ...disciplines.map((d) => Card(
+                child: ListTile(
+                  leading: const Icon(Icons.music_note, color: kRed),
+                  title: Text(d.name),
+                  subtitle: Text('Quota mensile: € ${d.fee.toStringAsFixed(2)}'),
+                  trailing: IconButton(icon: const Icon(Icons.edit, color: kRed), tooltip: 'Modifica', onPressed: () => _editDiscipline(context, d)),
+                  onTap: () => _editDiscipline(context, d),
                 ),
-              ),
+              )),
               const SizedBox(height: 12),
               FilledButton.icon(
-                onPressed: () async {
-                  final name = TextEditingController();
-                  final fee = TextEditingController();
-                  final ok = await showDialog<bool>(
-                    context: context,
-                    builder: (dialogContext) => AlertDialog(
-                      title: const Text('Nuova disciplina'),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextField(controller: name, decoration: const InputDecoration(labelText: 'Nome disciplina')),
-                          const SizedBox(height: 12),
-                          TextField(controller: fee, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Quota mensile (€)')),
-                        ],
-                      ),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Annulla')),
-                        FilledButton(
-                          onPressed: () {
-                            if (name.text.trim().isEmpty) return;
-                            disciplines.add(Discipline(name.text.trim(), double.tryParse(fee.text.replaceAll(',', '.')) ?? 0));
-                            Navigator.pop(dialogContext, true);
-                          },
-                          child: const Text('Salva'),
-                        ),
-                      ],
-                    ),
-                  );
-                  name.dispose();
-                  fee.dispose();
-                  if (ok == true) onChanged();
-                },
+                onPressed: () => _editDiscipline(context, Discipline('', 0)),
                 icon: const Icon(Icons.add),
                 label: const Text('Aggiungi disciplina'),
               ),
@@ -528,18 +543,16 @@ class _StudentDialogState extends State<StudentDialog> {
     return AlertDialog(
       title: Text(widget.student == null ? 'Inserisci nuovo iscritto' : 'Modifica iscritto'),
       content: SizedBox(
-        width: 720,
+        width: double.infinity,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextField(controller: name, decoration: const InputDecoration(labelText: 'Nome e cognome *')),
               const SizedBox(height: 10),
-              Row(children: [
-                Expanded(child: TextField(controller: phone, decoration: const InputDecoration(labelText: 'Telefono'))),
-                const SizedBox(width: 10),
-                Expanded(child: TextField(controller: email, decoration: const InputDecoration(labelText: 'Email'))),
-              ]),
+              LayoutBuilder(builder: (context, c) => c.maxWidth < 520
+                  ? Column(children: [TextField(controller: phone, decoration: const InputDecoration(labelText: 'Telefono')), const SizedBox(height: 10), TextField(controller: email, decoration: const InputDecoration(labelText: 'Email'))])
+                  : Row(children: [Expanded(child: TextField(controller: phone, decoration: const InputDecoration(labelText: 'Telefono'))), const SizedBox(width: 10), Expanded(child: TextField(controller: email, decoration: const InputDecoration(labelText: 'Email')))])),
               const SizedBox(height: 16),
               const Text('Discipline', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
@@ -564,13 +577,14 @@ class _StudentDialogState extends State<StudentDialog> {
               const SizedBox(height: 16),
               const Text('Costi', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              Row(children: [
-                Expanded(child: TextField(controller: participation, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Quota partecipazione (€)'))),
-                const SizedBox(width: 10),
-                Expanded(child: TextField(controller: showCost, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Costo saggio (€)'))),
-                const SizedBox(width: 10),
-                Expanded(child: TextField(controller: clothes, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Vestiti (€)'))),
-              ]),
+              LayoutBuilder(builder: (context, c) {
+                final fields = [
+                  TextField(controller: participation, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Quota partecipazione (€)')),
+                  TextField(controller: showCost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Costo saggio (€)')),
+                  TextField(controller: clothes, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Vestiti (€)')),
+                ];
+                return c.maxWidth < 520 ? Column(children: [fields[0], const SizedBox(height: 10), fields[1], const SizedBox(height: 10), fields[2]]) : Row(children: [for (int i=0;i<fields.length;i++) ...[Expanded(child: fields[i]), if(i<fields.length-1) const SizedBox(width: 10)]]);
+              }),
               const SizedBox(height: 18),
               Row(children: [
                 Expanded(child: TextField(controller: payment, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Importo acconto (€)'))),
