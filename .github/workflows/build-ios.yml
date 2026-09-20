@@ -1,0 +1,31 @@
+name: Build iOS - Dynamique Ballet Studio
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.3'
+          channel: stable
+          cache: true
+
+      - name: Generate iOS project
+        run: ./scripts/prepare_ios.sh
+
+      - name: Build iOS (unsigned)
+        run: flutter build ios --release --no-codesign
+
+      - name: Upload iOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamique-ballet-studio-ios-app
+          path: build/ios/iphoneos/Runner.app
+          if-no-files-found: error
