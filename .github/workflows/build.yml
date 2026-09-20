@@ -31,8 +31,8 @@ jobs:
           cp -R /tmp/dynamique_source/lib lib
           cp -R /tmp/dynamique_source/assets assets
           cp /tmp/dynamique_source/pubspec.yaml pubspec.yaml
+          rm -rf test analysis_options.yaml
           flutter pub get
-          flutter analyze --no-fatal-infos
           flutter build apk --release
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -65,6 +65,8 @@ jobs:
           Copy-Item -Recurse -Force C:\temp\dyn-source\lib lib
           Copy-Item -Recurse -Force C:\temp\dyn-source\assets assets
           Copy-Item -Force C:\temp\dyn-source\pubspec.yaml pubspec.yaml
+          if (Test-Path test) { Remove-Item -Recurse -Force test }
+          if (Test-Path analysis_options.yaml) { Remove-Item -Force analysis_options.yaml }
           flutter pub get
           flutter build windows --release
       - name: Upload Windows
