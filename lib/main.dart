@@ -56,6 +56,8 @@ class Student {
   String notes;
   List<String> disciplines;
   double participation;
+  double monthlyFee;
+  String feeMonth;
   double showCost;
   double clothesCost;
   List<Payment> payments;
@@ -68,6 +70,8 @@ class Student {
     this.notes = '',
     this.disciplines = const [],
     this.participation = 0,
+    this.monthlyFee = 0,
+    this.feeMonth = '',
     this.showCost = 0,
     this.clothesCost = 0,
     this.payments = const [],
@@ -85,6 +89,8 @@ class Student {
         'notes': notes,
         'disciplines': disciplines,
         'participation': participation,
+        'monthlyFee': monthlyFee,
+        'feeMonth': feeMonth,
         'showCost': showCost,
         'clothesCost': clothesCost,
         'payments': payments.map((p) => p.toJson()).toList(),
@@ -98,6 +104,8 @@ class Student {
         notes: j['notes']?.toString() ?? '',
         disciplines: List<String>.from(j['disciplines'] ?? const []),
         participation: (j['participation'] as num?)?.toDouble() ?? 0,
+        monthlyFee: (j['monthlyFee'] as num?)?.toDouble() ?? (j['participation'] as num?)?.toDouble() ?? 0,
+        feeMonth: j['feeMonth']?.toString() ?? '',
         showCost: (j['showCost'] as num?)?.toDouble() ?? 0,
         clothesCost: (j['clothesCost'] as num?)?.toDouble() ?? 0,
         payments: (j['payments'] as List? ?? const [])
@@ -143,6 +151,17 @@ class _HomePageState extends State<HomePage> {
         ..clear()
         ..addAll((jsonDecode(sj) as List)
             .map((x) => Student.fromJson(Map<String, dynamic>.from(x))));
+      final currentMonth = _monthKey(DateTime.now());
+      for (final student in students) {
+        if (student.feeMonth.isEmpty) {
+          student.feeMonth = currentMonth;
+          if (student.monthlyFee <= 0) student.monthlyFee = student.participation;
+        } else if (student.feeMonth != currentMonth) {
+          // La quota mensile si rinnova automaticamente all'inizio del nuovo mese.
+          student.feeMonth = currentMonth;
+          student.participation = student.monthlyFee;
+        }
+      }
     }
     if (dj != null) {
       disciplines
@@ -152,6 +171,8 @@ class _HomePageState extends State<HomePage> {
     }
     if (mounted) setState(() => loading = false);
   }
+
+  String _monthKey(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}';
 
   Future<void> save() async {
     final p = await SharedPreferences.getInstance();
@@ -512,6 +533,7 @@ class _StudentDialogState extends State<StudentDialog> {
   late final TextEditingController email;
   late final TextEditingController notes;
   late final TextEditingController participation;
+  late final TextEditingController monthlyFee;
   late final TextEditingController showCost;
   late final TextEditingController clothes;
   late final TextEditingController payment;
@@ -526,15 +548,37 @@ class _StudentDialogState extends State<StudentDialog> {
     phone = TextEditingController(text: s?.phone ?? '');
     email = TextEditingController(text: s?.email ?? '');
     notes = TextEditingController(text: s?.notes ?? '');
+    final initialMonthlyFee = s?.monthlyFee ?? s?.participation ?? 0;
+    monthlyFee = TextEditingController(text: initialMonthlyFee == 0 ? '' : initialMonthlyFee.toStringAsFixed(2));
     participation = TextEditingController(text: s == null ? '' : s.participation.toString());
     showCost = TextEditingController(text: s == null ? '' : s.showCost.toString());
     clothes = TextEditingController(text: s == null ? '' : s.clothesCost.toString());
     payment = TextEditingController();
     selected = [...(s?.disciplines ?? const <String>[])];
     payments = [...(s?.payments ?? const <Payment>[])];
+    final automaticFee = selectedMonthlyFee();
+    if (automaticFee > 0) {
+      monthlyFee.text = automaticFee.toStringAsFixed(2);
+      participation.text = automaticFee.toStringAsFixed(2);
+    }
   }
 
   double valueOf(TextEditingController controller) => double.tryParse(controller.text.replaceAll(',', '.')) ?? 0;
+
+  double selectedMonthlyFee() {
+    double total = 0;
+    for (final name in selected) {
+      final match = widget.disciplines.where((d) => d.name == name);
+      if (match.isNotEmpty) total += match.first.fee;
+    }
+    return total;
+  }
+
+  void refreshMonthlyFee() {
+    final fee = selectedMonthlyFee();
+    monthlyFee.text = fee == 0 ? '' : fee.toStringAsFixed(2);
+    participation.text = fee == 0 ? '' : fee.toStringAsFixed(2);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -569,6 +613,7 @@ class _StudentDialogState extends State<StudentDialog> {
                         } else {
                           selected.remove(d.name);
                         }
+                        refreshMonthlyFee();
                       });
                     },
                   );
@@ -579,7 +624,11 @@ class _StudentDialogState extends State<StudentDialog> {
               const SizedBox(height: 8),
               LayoutBuilder(builder: (context, c) {
                 final fields = [
-                  TextField(controller: participation, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Quota partecipazione (€)')),
+                  TextField(
+                    controller: participation,
+                    readOnly: true,
+                    decoration: const InputDecoration(labelText: 'Quota mensile (€)', helperText: 'Calcolata automaticamente dalle discipline selezionate'),
+                  ),
                   TextField(controller: showCost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Costo saggio (€)')),
                   TextField(controller: clothes, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Vestiti (€)')),
                 ];
@@ -643,6 +692,8 @@ class _StudentDialogState extends State<StudentDialog> {
                 notes: notes.text.trim(),
                 disciplines: [...selected],
                 participation: valueOf(participation),
+                monthlyFee: valueOf(monthlyFee),
+                feeMonth: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}',
                 showCost: valueOf(showCost),
                 clothesCost: valueOf(clothes),
                 payments: [...payments],
@@ -667,6 +718,7 @@ class _StudentDialogState extends State<StudentDialog> {
     email.dispose();
     notes.dispose();
     participation.dispose();
+    monthlyFee.dispose();
     showCost.dispose();
     clothes.dispose();
     payment.dispose();
