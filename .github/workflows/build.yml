@@ -69,6 +69,10 @@ jobs:
           if (Test-Path test) { Remove-Item -Recurse -Force test }
           if (Test-Path analysis_options.yaml) { Remove-Item -Force analysis_options.yaml }
           flutter pub get
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          $env:CMAKE_GENERATOR = "Visual Studio 17 2022"
+          $env:CMAKE_GENERATOR_PLATFORM = "x64"
+          flutter config --enable-windows-desktop
           flutter build windows --release
       - name: Upload Windows
         uses: actions/upload-artifact@v4
