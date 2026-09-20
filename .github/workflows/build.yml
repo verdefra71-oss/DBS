@@ -7,60 +7,68 @@ on:
 
 jobs:
   android:
-    name: Build Android APK
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
         with:
+          flutter-version: 3.35.3
           channel: stable
-          flutter-version: '3.35.3'
           cache: true
-      - name: Verify Flutter project
+      - name: Create supported Flutter Android project
+        shell: bash
         run: |
-          test -f pubspec.yaml
-          test -f lib/main.dart
-          flutter --version
-      - name: Clean
-        run: flutter clean
-      - name: Get dependencies
-        run: flutter pub get
-      - name: Verify dependencies
-        run: flutter pub deps
-      - name: Build APK
-        run: flutter build apk --release
+          set -e
+          mkdir -p /tmp/dynamique_source
+          cp -R lib /tmp/dynamique_source/lib
+          cp -R assets /tmp/dynamique_source/assets
+          cp pubspec.yaml /tmp/dynamique_source/pubspec.yaml
+          rm -rf /tmp/dynamique_app
+          mkdir -p /tmp/dynamique_app
+          cd /tmp/dynamique_app
+          flutter create --no-pub --platforms=android,windows --org com.dynamiqueballetstudio --project-name dynamique_ballet_studio .
+          rm -rf lib assets
+          cp -R /tmp/dynamique_source/lib lib
+          cp -R /tmp/dynamique_source/assets assets
+          cp /tmp/dynamique_source/pubspec.yaml pubspec.yaml
+          flutter pub get
+          flutter analyze --no-fatal-infos
+          flutter build apk --release
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: dynamique-ballet-studio-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: /tmp/dynamique_app/build/app/outputs/flutter-apk/app-release.apk
 
   windows:
-    name: Build Windows
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
         with:
+          flutter-version: 3.35.3
           channel: stable
-          flutter-version: '3.35.3'
           cache: true
-      - name: Enable Windows
-        run: flutter config --enable-windows-desktop
-      - name: Generate Windows platform files
-        run: flutter create --platforms=windows .
-      - name: Clean
-        run: flutter clean
-      - name: Get dependencies
-        run: flutter pub get
-      - name: Build Windows
-        run: flutter build windows --release
-      - name: Upload Windows build
+      - name: Create supported Flutter Windows project
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path C:\temp\dyn-source | Out-Null
+          Copy-Item -Recurse -Force lib C:\temp\dyn-source\lib
+          Copy-Item -Recurse -Force assets C:\temp\dyn-source\assets
+          Copy-Item -Force pubspec.yaml C:\temp\dyn-source\pubspec.yaml
+          if (Test-Path C:\temp\dynamique-app) { Remove-Item -Recurse -Force C:\temp\dynamique-app }
+          New-Item -ItemType Directory -Force -Path C:\temp\dynamique-app | Out-Null
+          Set-Location C:\temp\dynamique-app
+          flutter create --no-pub --platforms=windows --org com.dynamiqueballetstudio --project-name dynamique_ballet_studio .
+          Remove-Item -Recurse -Force lib, assets
+          Copy-Item -Recurse -Force C:\temp\dyn-source\lib lib
+          Copy-Item -Recurse -Force C:\temp\dyn-source\assets assets
+          Copy-Item -Force C:\temp\dyn-source\pubspec.yaml pubspec.yaml
+          flutter pub get
+          flutter build windows --release
+      - name: Upload Windows
         uses: actions/upload-artifact@v4
         with:
           name: dynamique-ballet-studio-windows
-          path: build/windows/x64/runner/Release/**
+          path: C:\temp\dynamique-app\build\windows\x64\runner\Release\**
