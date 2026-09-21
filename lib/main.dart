@@ -416,6 +416,8 @@ class Dashboard extends StatelessWidget {
                   StatCard('Da incassare', '\u20AC ${balance.toStringAsFixed(2)}', Icons.account_balance_wallet),
                 ],
               ),
+              const SizedBox(height: 16),
+              _UnpaidMonthlyFeesCard(students: students),
               const SizedBox(height: 24),
               Card(
                 child: Padding(
@@ -471,6 +473,170 @@ class Dashboard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _UnpaidMonthlyFeesCard extends StatelessWidget {
+  final List<Student> students;
+  const _UnpaidMonthlyFeesCard({required this.students});
+
+  String _monthKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}';
+
+  double _paidThisMonth(Student student, String month) {
+    double total = 0;
+    for (final payment in student.payments) {
+      final parsed = DateTime.tryParse(payment.date);
+      if (parsed != null && _monthKey(parsed) == month) {
+        total += payment.amount;
+      }
+    }
+    return total;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentMonth = _monthKey(DateTime.now());
+    final unpaid = students.where((student) {
+      final fee = student.monthlyFee > 0 ? student.monthlyFee : student.participation;
+      if (fee <= 0) return false;
+      return _paidThisMonth(student, currentMonth) < fee;
+    }).toList();
+
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: unpaid.isEmpty
+            ? null
+            : () {
+                showDialog<void>(
+                  context: context,
+                  builder: (dialogContext) => AlertDialog(
+                    title: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, color: kRed),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text('Rette non pagate - ${unpaid.length}'),
+                        ),
+                      ],
+                    ),
+                    content: SizedBox(
+                      width: 420,
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: unpaid.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, index) {
+                          final student = unpaid[index];
+                          final fee = student.monthlyFee > 0
+                              ? student.monthlyFee
+                              : student.participation;
+                          final paid = _paidThisMonth(student, currentMonth);
+                          final remaining = fee - paid;
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: kRed,
+                              foregroundColor: Colors.white,
+                              child: Text(
+                                student.name.isEmpty
+                                    ? '?'
+                                    : student.name[0].toUpperCase(),
+                              ),
+                            ),
+                            title: Text(
+                              student.name.isEmpty
+                                  ? 'Nome non indicato'
+                                  : student.name,
+                            ),
+                            subtitle: Text(
+                              paid > 0
+                                  ? 'Versato questo mese: € ${paid.toStringAsFixed(2)} • Mancano: € ${remaining.toStringAsFixed(2)}'
+                                  : 'Nessun pagamento registrato questo mese • Retta: € ${fee.toStringAsFixed(2)}',
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: const Text('CHIUDI'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: unpaid.isEmpty
+                      ? Colors.green.withOpacity(0.12)
+                      : kRed.withOpacity(0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  unpaid.isEmpty
+                      ? Icons.check_circle_outline
+                      : Icons.warning_amber_rounded,
+                  color: unpaid.isEmpty ? Colors.green : kRed,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Rette mensili non pagate',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      unpaid.isEmpty
+                          ? 'Tutti gli iscritti hanno pagato la retta di questo mese.'
+                          : 'Ci sono ${unpaid.length} ${unpaid.length == 1 ? 'iscritto' : 'iscritti'} inadempienti. Tocca per vedere i nomi.',
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                constraints: const BoxConstraints(minWidth: 54),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: unpaid.isEmpty ? Colors.green : kRed,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  '${unpaid.length}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (unpaid.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                const Icon(Icons.chevron_right),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
