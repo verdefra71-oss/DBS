@@ -44,6 +44,21 @@ class Payment {
       );
 }
 
+class CashEntry {
+  String id;
+  double amount;
+  String description;
+  String date;
+  CashEntry({required this.id, required this.amount, required this.description, required this.date});
+  Map<String, dynamic> toJson() => {'id': id, 'amount': amount, 'description': description, 'date': date};
+  factory CashEntry.fromJson(Map<String, dynamic> j) => CashEntry(
+    id: j['id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString(),
+    amount: (j['amount'] as num?)?.toDouble() ?? 0,
+    description: j['description']?.toString() ?? '',
+    date: j['date']?.toString() ?? '',
+  );
+}
+
 class ReceiptRecord {
   final String id;
   final String studentId;
@@ -149,6 +164,8 @@ class _HomePageState extends State<HomePage> {
   bool loading = true;
   final List<Student> students = [];
   final List<ReceiptRecord> receipts = [];
+  final List<CashEntry> extraIncome = [];
+  final List<CashEntry> expenses = [];
   final List<Discipline> disciplines = [
     Discipline('Danza classica', 0),
     Discipline('Danza moderna', 0),
@@ -200,6 +217,18 @@ class _HomePageState extends State<HomePage> {
         ..clear()
         ..addAll((jsonDecode(rj) as List).map((x) => ReceiptRecord.fromJson(Map<String, dynamic>.from(x))));
     }
+    final ej = p.getString('extraIncome');
+    if (ej != null) {
+      extraIncome
+        ..clear()
+        ..addAll((jsonDecode(ej) as List).map((x) => CashEntry.fromJson(Map<String, dynamic>.from(x))));
+    }
+    final xj = p.getString('expenses');
+    if (xj != null) {
+      expenses
+        ..clear()
+        ..addAll((jsonDecode(xj) as List).map((x) => CashEntry.fromJson(Map<String, dynamic>.from(x))));
+    }
     if (mounted) setState(() => loading = false);
   }
 
@@ -210,6 +239,8 @@ class _HomePageState extends State<HomePage> {
     await p.setString('students', jsonEncode(students.map((s) => s.toJson()).toList()));
     await p.setString('disciplines', jsonEncode(disciplines.map((d) => d.toJson()).toList()));
     await p.setString('receipts', jsonEncode(receipts.map((r) => r.toJson()).toList()));
+    await p.setString('extraIncome', jsonEncode(extraIncome.map((e) => e.toJson()).toList()));
+    await p.setString('expenses', jsonEncode(expenses.map((e) => e.toJson()).toList()));
   }
 
   Future<Map<String, dynamic>> _backupData() async {
@@ -219,6 +250,8 @@ class _HomePageState extends State<HomePage> {
       'students': students.map((s) => s.toJson()).toList(),
       'disciplines': disciplines.map((d) => d.toJson()).toList(),
       'receipts': receipts.map((r) => r.toJson()).toList(),
+      'extraIncome': extraIncome.map((e) => e.toJson()).toList(),
+      'expenses': expenses.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -259,6 +292,20 @@ class _HomePageState extends State<HomePage> {
           receipts.add(incoming);
         }
       }
+      final importedExtraIncome = (data['extraIncome'] as List? ?? const [])
+          .map((x) => CashEntry.fromJson(Map<String, dynamic>.from(x)))
+          .toList();
+      for (final incoming in importedExtraIncome) {
+        final idx = extraIncome.indexWhere((e) => e.id == incoming.id);
+        if (idx >= 0) { extraIncome[idx] = incoming; } else { extraIncome.add(incoming); }
+      }
+      final importedExpenses = (data['expenses'] as List? ?? const [])
+          .map((x) => CashEntry.fromJson(Map<String, dynamic>.from(x)))
+          .toList();
+      for (final incoming in importedExpenses) {
+        final idx = expenses.indexWhere((e) => e.id == incoming.id);
+        if (idx >= 0) { expenses[idx] = incoming; } else { expenses.add(incoming); }
+      }
       final importedStudents = (data['students'] as List? ?? const [])
           .map((x) => Student.fromJson(Map<String, dynamic>.from(x)))
           .toList();
@@ -278,6 +325,37 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup non valido o non leggibile.')));
     }
+  }
+
+  Future<void> _addCashEntry(List<CashEntry> target, String title) async {
+    final description = TextEditingController();
+    final amount = TextEditingController();
+    final result = await showDialog<CashEntry>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Nuovo $title'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: description, decoration: const InputDecoration(labelText: 'Descrizione')),
+          const SizedBox(height: 12),
+          TextField(controller: amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Importo €')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ANNULLA')),
+          FilledButton(onPressed: () {
+            final value = double.tryParse(amount.text.replaceAll(',', '.')) ?? 0;
+            if (value <= 0) return;
+            Navigator.pop(ctx, CashEntry(id: DateTime.now().microsecondsSinceEpoch.toString(), amount: value, description: description.text.trim().isEmpty ? title : description.text.trim(), date: DateTime.now().toIso8601String()));
+          }, child: const Text('SALVA')),
+        ],
+      ),
+    );
+    description.dispose(); amount.dispose();
+    if (result != null) { setState(() => target.add(result)); await save(); }
+  }
+
+  Future<void> _deleteCashEntry(List<CashEntry> target, CashEntry entry) async {
+    setState(() => target.remove(entry));
+    await save();
   }
 
   Future<void> openStudent([Student? existing]) async {
@@ -311,7 +389,7 @@ class _HomePageState extends State<HomePage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final pages = <Widget>[
-      Dashboard(students: students, onAdd: openStudent, onBackup: exportBackup, onImport: importBackupMerge, onOpenStudents: () => setState(() => tab = 1)),
+      Dashboard(students: students, extraIncome: extraIncome, expenses: expenses, onAddExtra: () => _addCashEntry(extraIncome, 'Incasso extra'), onAddExpense: () => _addCashEntry(expenses, 'Spesa'), onDeleteExtra: (e) => _deleteCashEntry(extraIncome, e), onDeleteExpense: (e) => _deleteCashEntry(expenses, e), onAdd: openStudent, onBackup: exportBackup, onImport: importBackupMerge, onOpenStudents: () => setState(() => tab = 1)),
       StudentsPage(
         students: students,
         groupedByDiscipline: true,
@@ -398,17 +476,26 @@ class Header extends StatelessWidget {
 
 class Dashboard extends StatelessWidget {
   final List<Student> students;
+  final List<CashEntry> extraIncome;
+  final List<CashEntry> expenses;
+  final VoidCallback onAddExtra;
+  final VoidCallback onAddExpense;
+  final ValueChanged<CashEntry> onDeleteExtra;
+  final ValueChanged<CashEntry> onDeleteExpense;
   final Future<void> Function([Student?]) onAdd;
   final VoidCallback onBackup;
   final VoidCallback onImport;
   final VoidCallback onOpenStudents;
-  const Dashboard({super.key, required this.students, required this.onAdd, required this.onBackup, required this.onImport, required this.onOpenStudents});
+  const Dashboard({super.key, required this.students, required this.extraIncome, required this.expenses, required this.onAddExtra, required this.onAddExpense, required this.onDeleteExtra, required this.onDeleteExpense, required this.onAdd, required this.onBackup, required this.onImport, required this.onOpenStudents});
 
   @override
   Widget build(BuildContext context) {
     final total = students.fold<double>(0, (sum, s) => sum + s.total);
     final paid = students.fold<double>(0, (sum, s) => sum + s.paid);
     final balance = total - paid;
+    final extra = extraIncome.fold<double>(0, (sum, e) => sum + e.amount);
+    final spent = expenses.fold<double>(0, (sum, e) => sum + e.amount);
+    final adjustedCash = paid + extra - spent;
     return Column(
       children: [
         const Header(title: 'Gestione Scuola di Danza'),
@@ -423,11 +510,20 @@ class Dashboard extends StatelessWidget {
                   StatCard('Iscritti', '${students.length}', Icons.people, onTap: onOpenStudents),
                   StatCard('Totale quote', '\u20AC ${total.toStringAsFixed(2)}', Icons.euro),
                   StatCard('Incassato', '\u20AC ${paid.toStringAsFixed(2)}', Icons.payments),
-                  StatCard('Da incassare', '\u20AC ${balance.toStringAsFixed(2)}', Icons.account_balance_wallet),
+                  StatCard('Incassi extra', '\u20AC ${extra.toStringAsFixed(2)}', Icons.add_circle_outline, onTap: onAddExtra),
+                  StatCard('Spese', '- \u20AC ${spent.toStringAsFixed(2)}', Icons.remove_circle_outline, onTap: onAddExpense),
+                  StatCard('Incassato netto', '\u20AC ${adjustedCash.toStringAsFixed(2)}', Icons.account_balance_wallet),
+                  StatCard('Da incassare', '\u20AC ${balance.toStringAsFixed(2)}', Icons.pending_actions),
                 ],
               ),
               const SizedBox(height: 16),
               _UnpaidMonthlyFeesCard(students: students),
+              if (extraIncome.isNotEmpty || expenses.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                CashSummaryCard(title: 'Movimenti extra', entries: extraIncome, icon: Icons.add_circle_outline, onDelete: onDeleteExtra),
+                const SizedBox(height: 10),
+                CashSummaryCard(title: 'Spese', entries: expenses, icon: Icons.remove_circle_outline, onDelete: onDeleteExpense),
+              ],
               const SizedBox(height: 24),
               Card(
                 child: Padding(
@@ -667,6 +763,20 @@ class _UnpaidMonthlyFeesCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class CashSummaryCard extends StatelessWidget {
+  final String title;
+  final List<CashEntry> entries;
+  final IconData icon;
+  final ValueChanged<CashEntry> onDelete;
+  const CashSummaryCard({super.key, required this.title, required this.entries, required this.icon, required this.onDelete});
+  @override
+  Widget build(BuildContext context) {
+    final total = entries.fold<double>(0, (sum, e) => sum + e.amount);
+    return Card(child: ExpansionTile(leading: Icon(icon, color: kRed), title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)), trailing: Text('€ ${total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)), children: entries.map((e) => ListTile(title: Text(e.description), subtitle: Text(_displayDate(e.date)), trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text('€ ${e.amount.toStringAsFixed(2)}'), IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => onDelete(e))])).toList()));
+  }
+  String _displayDate(String value) { final d = DateTime.tryParse(value); return d == null ? value : '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}'; }
 }
 
 class StatCard extends StatelessWidget {
