@@ -311,9 +311,10 @@ class _HomePageState extends State<HomePage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final pages = <Widget>[
-      Dashboard(students: students, onAdd: openStudent, onBackup: exportBackup, onImport: importBackupMerge),
+      Dashboard(students: students, onAdd: openStudent, onBackup: exportBackup, onImport: importBackupMerge, onOpenStudents: () => setState(() => tab = 1)),
       StudentsPage(
         students: students,
+        groupedByDiscipline: true,
         onEdit: openStudent,
         onDelete: (s) {
           setState(() => students.remove(s));
@@ -400,7 +401,8 @@ class Dashboard extends StatelessWidget {
   final Future<void> Function([Student?]) onAdd;
   final VoidCallback onBackup;
   final VoidCallback onImport;
-  const Dashboard({super.key, required this.students, required this.onAdd, required this.onBackup, required this.onImport});
+  final VoidCallback onOpenStudents;
+  const Dashboard({super.key, required this.students, required this.onAdd, required this.onBackup, required this.onImport, required this.onOpenStudents});
 
   @override
   Widget build(BuildContext context) {
@@ -418,7 +420,7 @@ class Dashboard extends StatelessWidget {
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  StatCard('Iscritti', '${students.length}', Icons.people),
+                  StatCard('Iscritti', '${students.length}', Icons.people, onTap: onOpenStudents),
                   StatCard('Totale quote', '\u20AC ${total.toStringAsFixed(2)}', Icons.euro),
                   StatCard('Incassato', '\u20AC ${paid.toStringAsFixed(2)}', Icons.payments),
                   StatCard('Da incassare', '\u20AC ${balance.toStringAsFixed(2)}', Icons.account_balance_wallet),
@@ -671,14 +673,18 @@ class StatCard extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
-  const StatCard(this.title, this.value, this.icon, {super.key});
+  final VoidCallback? onTap;
+  const StatCard(this.title, this.value, this.icon, {super.key, this.onTap});
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 650;
     return SizedBox(
       width: compact ? (MediaQuery.sizeOf(context).width - 36) / 2 : 220,
       child: Card(
-        child: Padding(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
           padding: EdgeInsets.all(compact ? 12 : 18),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(icon, color: kRed, size: 30),
@@ -686,6 +692,7 @@ class StatCard extends StatelessWidget {
             Text(title),
             Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           ]),
+          ),
         ),
       ),
     );
@@ -713,7 +720,8 @@ class StudentsPage extends StatefulWidget {
   final List<Student> students;
   final Future<void> Function(Student?) onEdit;
   final void Function(Student) onDelete;
-  const StudentsPage({super.key, required this.students, required this.onEdit, required this.onDelete});
+  final bool groupedByDiscipline;
+  const StudentsPage({super.key, required this.students, required this.onEdit, required this.onDelete, this.groupedByDiscipline = false});
   @override
   State<StudentsPage> createState() => _StudentsPageState();
 }
@@ -745,31 +753,66 @@ class _StudentsPageState extends State<StudentsPage> {
         Expanded(
           child: list.isEmpty
               ? const Center(child: Text('Nessun risultato'))
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: list.length,
-                  itemBuilder: (context, index) {
-                    final s = list[index];
-                    return Card(
-                      child: ListTile(
-                        title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(
-                          '${s.disciplines.join(' • ')}\nTotale \u20AC ${s.total.toStringAsFixed(2)}  •  Versato \u20AC ${s.paid.toStringAsFixed(2)}  •  Saldo \u20AC ${s.balance.toStringAsFixed(2)}',
-                        ),
-                        isThreeLine: true,
-                        trailing: Wrap(
-                          children: [
-                            IconButton(onPressed: () => widget.onEdit(s), icon: const Icon(Icons.edit, color: kRed)),
-                            IconButton(onPressed: () => widget.onDelete(s), icon: const Icon(Icons.delete_outline)),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+              : widget.groupedByDiscipline
+                  ? _GroupedStudentsList(students: list, onEdit: widget.onEdit, onDelete: widget.onDelete)
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: list.length,
+                      itemBuilder: (context, index) {
+                        final s = list[index];
+                        return _StudentTile(student: s, onEdit: widget.onEdit, onDelete: widget.onDelete);
+                      },
+                    ),
         ),
       ],
     );
+  }
+}
+
+class _StudentTile extends StatelessWidget {
+  final Student student;
+  final Future<void> Function(Student?) onEdit;
+  final void Function(Student) onDelete;
+  const _StudentTile({required this.student, required this.onEdit, required this.onDelete});
+  @override
+  Widget build(BuildContext context) => Card(
+    child: ListTile(
+      title: Text(student.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text('${student.disciplines.join(' • ')}\nTotale \u20AC ${student.total.toStringAsFixed(2)}  •  Versato \u20AC ${student.paid.toStringAsFixed(2)}  •  Saldo \u20AC ${student.balance.toStringAsFixed(2)}'),
+      isThreeLine: true,
+      trailing: Wrap(children: [
+        IconButton(onPressed: () => onEdit(student), icon: const Icon(Icons.edit, color: kRed)),
+        IconButton(onPressed: () => onDelete(student), icon: const Icon(Icons.delete_outline)),
+      ]),
+    ),
+  );
+}
+
+class _GroupedStudentsList extends StatelessWidget {
+  final List<Student> students;
+  final Future<void> Function(Student?) onEdit;
+  final void Function(Student) onDelete;
+  const _GroupedStudentsList({required this.students, required this.onEdit, required this.onDelete});
+  @override
+  Widget build(BuildContext context) {
+    final groups = <String, List<Student>>{};
+    for (final s in students) {
+      final ds = s.disciplines.isEmpty ? ['Senza disciplina'] : s.disciplines;
+      for (final d in ds) { groups.putIfAbsent(d, () => []).add(s); }
+    }
+    final keys = groups.keys.toList()..sort();
+    return ListView(padding: const EdgeInsets.symmetric(horizontal: 20), children: [
+      Padding(padding: const EdgeInsets.only(bottom: 12), child: Text('Iscritti divisi per disciplina', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
+      ...keys.map((d) => Card(
+        child: ExpansionTile(
+          initiallyExpanded: true,
+          leading: const Icon(Icons.menu_book, color: kRed),
+          title: Text(d, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text('${groups[d]!.length} ${groups[d]!.length == 1 ? 'iscritto' : 'iscritti'}'),
+          children: groups[d]!.map((s) => _StudentTile(student: s, onEdit: onEdit, onDelete: onDelete)).toList(),
+        ),
+      )),
+    ]);
   }
 }
 
