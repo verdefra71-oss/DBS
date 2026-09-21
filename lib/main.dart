@@ -774,7 +774,27 @@ class CashSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = entries.fold<double>(0, (sum, e) => sum + e.amount);
-    return Card(child: ExpansionTile(leading: Icon(icon, color: kRed), title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)), trailing: Text('€ ${total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)), children: entries.map((e) => ListTile(title: Text(e.description), subtitle: Text(_displayDate(e.date)), trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text('€ ${e.amount.toStringAsFixed(2)}'), IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => onDelete(e))])).toList()));
+    return Card(
+      child: ExpansionTile(
+        leading: Icon(icon, color: kRed),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        trailing: Text('€ ${total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+        children: entries.map((e) => ListTile(
+          title: Text(e.description),
+          subtitle: Text(_displayDate(e.date)),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('€ ${e.amount.toStringAsFixed(2)}'),
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () => onDelete(e),
+              ),
+            ],
+          ),
+        )).toList(),
+      ),
+    );
   }
   String _displayDate(String value) { final d = DateTime.tryParse(value); return d == null ? value : '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}'; }
 }
