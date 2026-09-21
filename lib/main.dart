@@ -537,7 +537,37 @@ class _HomePageState extends State<HomePage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final pages = <Widget>[
-      Dashboard(students: students, extraIncome: extraIncome, expenses: expenses, monthlyReports: monthlyReports, onOpenReports: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MonthlyReportsPage(reports: monthlyReports, onPrint: (r) async { final bytes = await _reportPdf(r); final name = 'resoconto_${r['month']}.pdf'; await Share.shareXFiles([XFile.fromData(bytes, name: name, mimeType: 'application/pdf')], subject: 'Resoconto ${r['label']}'); })), onAddExtra: () => _addCashEntry(extraIncome, 'Incasso extra'), onAddExpense: () => _addCashEntry(expenses, 'Spesa'), onDeleteExtra: (e) => _deleteCashEntry(extraIncome, e), onDeleteExpense: (e) => _deleteCashEntry(expenses, e), onAdd: openStudent, onBackup: exportBackup, onImport: importBackupMerge, onOpenStudents: () => setState(() => tab = 1)),
+      Dashboard(
+        students: students,
+        extraIncome: extraIncome,
+        expenses: expenses,
+        monthlyReports: monthlyReports,
+        onOpenReports: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => MonthlyReportsPage(
+                reports: monthlyReports,
+                onPrint: (r) async {
+                  final bytes = await _reportPdf(r);
+                  final name = 'resoconto_${r['month']}.pdf';
+                  await Share.shareXFiles(
+                    [XFile.fromData(bytes, name: name, mimeType: 'application/pdf')],
+                    subject: 'Resoconto ${r['label']}',
+                  );
+                },
+              ),
+            ),
+          );
+        },
+        onAddExtra: () => _addCashEntry(extraIncome, 'Incasso extra'),
+        onAddExpense: () => _addCashEntry(expenses, 'Spesa'),
+        onDeleteExtra: (e) => _deleteCashEntry(extraIncome, e),
+        onDeleteExpense: (e) => _deleteCashEntry(expenses, e),
+        onAdd: openStudent,
+        onBackup: exportBackup,
+        onImport: importBackupMerge,
+        onOpenStudents: () => setState(() => tab = 1),
+      ),
       StudentsPage(
         students: students,
         groupedByDiscipline: true,
