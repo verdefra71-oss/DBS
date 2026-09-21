@@ -537,7 +537,7 @@ class _HomePageState extends State<HomePage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final pages = <Widget>[
-      Dashboard(students: students, extraIncome: extraIncome, expenses: expenses, onAddExtra: () => _addCashEntry(extraIncome, 'Incasso extra'), onAddExpense: () => _addCashEntry(expenses, 'Spesa'), onDeleteExtra: (e) => _deleteCashEntry(extraIncome, e), onDeleteExpense: (e) => _deleteCashEntry(expenses, e), onAdd: openStudent, onBackup: exportBackup, onImport: importBackupMerge, onOpenStudents: () => setState(() => tab = 1)),
+      Dashboard(students: students, extraIncome: extraIncome, expenses: expenses, monthlyReports: monthlyReports, onOpenReports: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MonthlyReportsPage(reports: monthlyReports, onPrint: (r) async { final bytes = await _reportPdf(r); final name = 'resoconto_${r['month']}.pdf'; await Share.shareXFiles([XFile.fromData(bytes, name: name, mimeType: 'application/pdf')], subject: 'Resoconto ${r['label']}'); })), onAddExtra: () => _addCashEntry(extraIncome, 'Incasso extra'), onAddExpense: () => _addCashEntry(expenses, 'Spesa'), onDeleteExtra: (e) => _deleteCashEntry(extraIncome, e), onDeleteExpense: (e) => _deleteCashEntry(expenses, e), onAdd: openStudent, onBackup: exportBackup, onImport: importBackupMerge, onOpenStudents: () => setState(() => tab = 1)),
       StudentsPage(
         students: students,
         groupedByDiscipline: true,
@@ -622,10 +622,62 @@ class Header extends StatelessWidget {
   }
 }
 
+
+class MonthlyReportsPage extends StatelessWidget {
+  final List<Map<String, dynamic>> reports;
+  final Future<void> Function(Map<String, dynamic>) onPrint;
+  const MonthlyReportsPage({super.key, required this.reports, required this.onPrint});
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...reports]..sort((a, b) => (b['month'] ?? '').toString().compareTo((a['month'] ?? '').toString()));
+    return Scaffold(
+      appBar: AppBar(title: const Text('Resoconto mensile')),
+      body: sorted.isEmpty
+          ? const Center(child: Text('Nessun resoconto mensile disponibile.'))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: sorted.length,
+              itemBuilder: (_, i) {
+                final r = sorted[i];
+                final paid = (r['paidFees'] as num?)?.toDouble() ?? 0;
+                final extra = (r['extra'] as num?)?.toDouble() ?? 0;
+                final expenses = (r['expenses'] as num?)?.toDouble() ?? 0;
+                final net = (r['net'] as num?)?.toDouble() ?? paid + extra - expenses;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        const Icon(Icons.calendar_month),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(r['label']?.toString() ?? r['month'].toString(), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold))),
+                        IconButton(onPressed: () => onPrint(r), icon: const Icon(Icons.print), tooltip: 'Stampa / condividi PDF'),
+                      ]),
+                      const Divider(),
+                      Text('Incassi rette: € ${paid.toStringAsFixed(2)}'),
+                      Text('Incassi extra: € ${extra.toStringAsFixed(2)}'),
+                      Text('Spese: - € ${expenses.toStringAsFixed(2)}'),
+                      const SizedBox(height: 6),
+                      Text('Incassato netto: € ${net.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(onPressed: () => onPrint(r), icon: const Icon(Icons.picture_as_pdf), label: const Text('STAMPA / CONDIVIDI PDF')),
+                    ]),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
 class Dashboard extends StatelessWidget {
   final List<Student> students;
   final List<CashEntry> extraIncome;
   final List<CashEntry> expenses;
+  final List<Map<String, dynamic>> monthlyReports;
+  final VoidCallback onOpenReports;
   final VoidCallback onAddExtra;
   final VoidCallback onAddExpense;
   final ValueChanged<CashEntry> onDeleteExtra;
@@ -634,7 +686,7 @@ class Dashboard extends StatelessWidget {
   final VoidCallback onBackup;
   final VoidCallback onImport;
   final VoidCallback onOpenStudents;
-  const Dashboard({super.key, required this.students, required this.extraIncome, required this.expenses, required this.onAddExtra, required this.onAddExpense, required this.onDeleteExtra, required this.onDeleteExpense, required this.onAdd, required this.onBackup, required this.onImport, required this.onOpenStudents});
+  const Dashboard({super.key, required this.students, required this.extraIncome, required this.expenses, required this.monthlyReports, required this.onOpenReports, required this.onAddExtra, required this.onAddExpense, required this.onDeleteExtra, required this.onDeleteExpense, required this.onAdd, required this.onBackup, required this.onImport, required this.onOpenStudents});
 
   @override
   Widget build(BuildContext context) {
@@ -671,6 +723,13 @@ class Dashboard extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               _UnpaidMonthlyFeesCard(students: students),
+              const SizedBox(height: 12),
+              StatCard(
+                'Resoconto mensile',
+                monthlyReports.isEmpty ? 'Nessun resoconto' : monthlyReports.last['label']?.toString() ?? 'Apri',
+                Icons.assessment_outlined,
+                onTap: onOpenReports,
+              ),
               if (extraIncome.isNotEmpty || expenses.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 CashSummaryCard(title: 'Movimenti extra', entries: extraIncome, icon: Icons.add_circle_outline, onDelete: onDeleteExtra),
