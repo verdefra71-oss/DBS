@@ -283,7 +283,15 @@ class _HomePageState extends State<HomePage> {
   Future<void> openStudent([Student? existing]) async {
     final result = await showDialog<Student>(
       context: context,
-      builder: (_) => StudentDialog(student: existing, disciplines: disciplines, onReceiptCreated: (receipt) async { receipts.add(receipt); await save(); if (mounted) setState(() {}); }),
+      builder: (_) => StudentDialog(student: existing, disciplines: disciplines, onReceiptCreated: (receipt) async { receipts.add(receipt); await save(); if (mounted) setState(() {}); }, onStudentChanged: (updated) async {
+        if (existing == null) return;
+        final index = students.indexWhere((s) => s.id == updated.id);
+        if (index >= 0) {
+          students[index] = updated;
+          await save();
+          if (mounted) setState(() {});
+        }
+      }),
     );
     if (result == null) return;
     setState(() {
@@ -821,7 +829,8 @@ class StudentDialog extends StatefulWidget {
   final Student? student;
   final List<Discipline> disciplines;
   final Future<void> Function(ReceiptRecord receipt) onReceiptCreated;
-  const StudentDialog({super.key, this.student, required this.disciplines, required this.onReceiptCreated});
+  final Future<void> Function(Student student)? onStudentChanged;
+  const StudentDialog({super.key, this.student, required this.disciplines, required this.onReceiptCreated, this.onStudentChanged});
   @override
   State<StudentDialog> createState() => _StudentDialogState();
 }
@@ -935,6 +944,29 @@ class _StudentDialogState extends State<StudentDialog> {
     ], subject: 'Ricevuta acconto - ${name.text.trim()}', text: phone.text.trim().isEmpty ? 'Ricevuta acconto Dynamique Ballet Studio' : 'Ricevuta acconto Dynamique Ballet Studio per ${name.text.trim()} - ${phone.text.trim()}');
   }
 
+  Student _currentStudent() {
+    return Student(
+      id: widget.student?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      name: name.text.trim(),
+      phone: phone.text.trim(),
+      email: email.text.trim(),
+      notes: notes.text.trim(),
+      disciplines: [...selected],
+      participation: valueOf(participation),
+      monthlyFee: valueOf(monthlyFee),
+      feeMonth: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}',
+      showCost: valueOf(showCost),
+      clothesCost: valueOf(clothes),
+      payments: [...payments],
+    );
+  }
+
+  Future<void> _persistPaymentChange() async {
+    if (widget.student != null && widget.onStudentChanged != null) {
+      await widget.onStudentChanged!(_currentStudent());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final total = valueOf(participation) + valueOf(showCost) + valueOf(clothes);
@@ -994,15 +1026,16 @@ class _StudentDialogState extends State<StudentDialog> {
                 Expanded(child: TextField(controller: payment, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Importo acconto (\u20AC)'))),
                 const SizedBox(width: 10),
                 FilledButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
                     final amount = valueOf(payment);
                     if (amount <= 0) return;
+                    final newPayment = Payment(amount: amount, date: _today());
                     setState(() {
-                      final newPayment = Payment(amount: amount, date: _today());
                       payments.add(newPayment);
                       payment.clear();
-                      Future.microtask(() => _createReceiptAndShare(newPayment));
                     });
+                    await _persistPaymentChange();
+                    await _createReceiptAndShare(newPayment);
                   },
                   icon: const Icon(Icons.add),
                   label: const Text('Aggiungi acconto'),
@@ -1017,7 +1050,10 @@ class _StudentDialogState extends State<StudentDialog> {
                     title: Text('Acconto \u20AC ${entry.value.amount.toStringAsFixed(2)}'),
                     subtitle: Text(entry.value.date),
                     trailing: IconButton(
-                      onPressed: () => setState(() => payments.removeAt(entry.key)),
+                      onPressed: () async {
+                        setState(() => payments.removeAt(entry.key));
+                        await _persistPaymentChange();
+                      },
                       icon: const Icon(Icons.delete_outline),
                     ),
                   ),
