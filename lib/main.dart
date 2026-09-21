@@ -191,6 +191,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
+    final currentMonth = _monthKey(DateTime.now());
+    final lastMonth = p.getString('activeMonth') ?? '';
     final sj = p.getString('students');
     final dj = p.getString('disciplines');
     if (sj != null) {
@@ -198,8 +200,6 @@ class _HomePageState extends State<HomePage> {
         ..clear()
         ..addAll((jsonDecode(sj) as List)
             .map((x) => Student.fromJson(Map<String, dynamic>.from(x))));
-      final currentMonth = _monthKey(DateTime.now());
-      final lastMonth = p.getString('activeMonth') ?? '';
       if (lastMonth.isNotEmpty && lastMonth != currentMonth) {
         await _closePreviousMonth(lastMonth, p);
       }
@@ -334,23 +334,58 @@ class _HomePageState extends State<HomePage> {
   Future<Uint8List> _reportPdf(Map<String, dynamic> r) async {
     final doc = pw.Document();
     final label = r['label']?.toString() ?? r['month'].toString();
-    final unpaid = students.where((s) => s.arrears > 0).map((s) => '${s.name}: € ${s.arrears.toStringAsFixed(2)}').toList();
-    doc.addPage(pw.Page(pageFormat: PdfPageFormat.a4, build: (_) => pw.Padding(
-      padding: const pw.EdgeInsets.all(28),
-      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        pw.Text('Dynamique Ballet Studio', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
-        pw.SizedBox(height: 8), pw.Text('Resoconto incassi - $label', style: pw.TextStyle(fontSize: 17)),
-        pw.SizedBox(height: 20),
-        pw.Text('Incassi rette: € ${(r['paidFees'] as num).toDouble().toStringAsFixed(2)}'),
-        pw.Text('Incassi extra: € ${(r['extra'] as num).toDouble().toStringAsFixed(2)}'),
-        pw.Text('Spese: - € ${(r['expenses'] as num).toDouble().toStringAsFixed(2)}'),
-        pw.Divider(),
-        pw.Text('Incassato netto: € ${(r['net'] as num).toDouble().toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-        pw.SizedBox(height: 20),
-        pw.Text('Insoluti riportati al mese successivo', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-        if (unpaid.isEmpty) pw.Text('Nessun insoluto.') else ...unpaid.map((x) => pw.Padding(padding: const pw.EdgeInsets.only(top: 5), child: pw.Text(x))),
-      ],
-    )));
+    final unpaid = students
+        .where((s) => s.arrears > 0)
+        .map((s) => '${s.name}: € ${s.arrears.toStringAsFixed(2)}')
+        .toList();
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (context) {
+          return pw.Padding(
+            padding: const pw.EdgeInsets.all(28),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Dynamique Ballet Studio',
+                  style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Text(
+                  'Resoconto incassi - $label',
+                  style: pw.TextStyle(fontSize: 17),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text('Incassi rette: € ${(r['paidFees'] as num).toDouble().toStringAsFixed(2)}'),
+                pw.Text('Incassi extra: € ${(r['extra'] as num).toDouble().toStringAsFixed(2)}'),
+                pw.Text('Spese: - € ${(r['expenses'] as num).toDouble().toStringAsFixed(2)}'),
+                pw.Divider(),
+                pw.Text(
+                  'Incassato netto: € ${(r['net'] as num).toDouble().toStringAsFixed(2)}',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text(
+                  'Insoluti riportati al mese successivo',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                ),
+                if (unpaid.isEmpty)
+                  pw.Text('Nessun insoluto.')
+                else
+                  ...unpaid.map(
+                    (x) => pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 5),
+                      child: pw.Text(x),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
     return Uint8List.fromList(await doc.save());
   }
 
