@@ -1,0 +1,92 @@
+name: Build Dynamique Ballet Studio
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.35.3
+          channel: stable
+          cache: true
+      - name: Create supported Flutter Android project
+        shell: bash
+        run: |
+          set -e
+          mkdir -p /tmp/dynamique_source
+          cp -R lib /tmp/dynamique_source/lib
+          cp -R assets /tmp/dynamique_source/assets
+          cp pubspec.yaml /tmp/dynamique_source/pubspec.yaml
+          rm -rf /tmp/dynamique_app
+          mkdir -p /tmp/dynamique_app
+          cd /tmp/dynamique_app
+          flutter create --no-pub --platforms=android,windows --org com.dynamiqueballetstudio --project-name dynamique_ballet_studio .
+          rm -rf lib assets
+          cp -R /tmp/dynamique_source/lib lib
+          cp -R /tmp/dynamique_source/assets assets
+          cp /tmp/dynamique_source/pubspec.yaml pubspec.yaml
+          rm -rf test analysis_options.yaml
+          flutter pub get
+          flutter build apk --release
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamique-ballet-studio-apk
+          path: /tmp/dynamique_app/build/app/outputs/flutter-apk/app-release.apk
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.2
+          channel: stable
+          cache: true
+      - name: Create supported Flutter Windows project
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path C:\temp\dyn-source | Out-Null
+          Copy-Item -Recurse -Force lib C:\temp\dyn-source\lib
+          Copy-Item -Recurse -Force assets C:\temp\dyn-source\assets
+          Copy-Item -Force pubspec.yaml C:\temp\dyn-source\pubspec.yaml
+          if (Test-Path C:\temp\dynamique-app) { Remove-Item -Recurse -Force C:\temp\dynamique-app }
+          New-Item -ItemType Directory -Force -Path C:\temp\dynamique-app | Out-Null
+          Set-Location C:\temp\dynamique-app
+          flutter create --no-pub --platforms=windows --org com.dynamiqueballetstudio --project-name dynamique_ballet_studio .
+          if (Test-Path lib) { Remove-Item -Recurse -Force lib }
+          if (Test-Path assets) { Remove-Item -Recurse -Force assets }
+          Copy-Item -Recurse -Force C:\temp\dyn-source\lib lib
+          Copy-Item -Recurse -Force C:\temp\dyn-source\assets assets
+          Copy-Item -Force C:\temp\dyn-source\pubspec.yaml pubspec.yaml
+          if (Test-Path test) { Remove-Item -Recurse -Force test }
+          if (Test-Path analysis_options.yaml) { Remove-Item -Force analysis_options.yaml }
+          flutter pub get
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          Remove-Item Env:CMAKE_GENERATOR -ErrorAction SilentlyContinue
+          Remove-Item Env:CMAKE_GENERATOR_PLATFORM -ErrorAction SilentlyContinue
+          Remove-Item Env:CMAKE_GENERATOR_INSTANCE -ErrorAction SilentlyContinue
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          if (-not (Test-Path $vswhere)) { throw "vswhere.exe non trovato" }
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { throw "Visual Studio con strumenti C++ non trovato" }
+          $vcvars = Join-Path $vsPath 'VC\Auxiliary\Build\vcvars64.bat'
+          if (-not (Test-Path $vcvars)) { throw "vcvars64.bat non trovato: $vcvars" }
+          cmd.exe /c "`"$vcvars`" > nul && set" | ForEach-Object {
+            if ($_ -match '^(.*?)=(.*)$') { Set-Item -Path ("Env:" + $matches[1]) -Value $matches[2] }
+          }
+          flutter config --enable-windows-desktop
+          flutter --version
+          flutter build windows --release
+      - name: Upload Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamique-ballet-studio-windows
+          path: C:\temp\dynamique-app\build\windows\x64\runner\Release\**
