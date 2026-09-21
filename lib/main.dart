@@ -96,6 +96,7 @@ class Student {
   List<String> disciplines;
   double participation;
   double monthlyFee;
+  double arrears;
   String feeMonth;
   double showCost;
   double clothesCost;
@@ -110,6 +111,7 @@ class Student {
     this.disciplines = const [],
     this.participation = 0,
     this.monthlyFee = 0,
+    this.arrears = 0,
     this.feeMonth = '',
     this.showCost = 0,
     this.clothesCost = 0,
@@ -129,6 +131,7 @@ class Student {
         'disciplines': disciplines,
         'participation': participation,
         'monthlyFee': monthlyFee,
+        'arrears': arrears,
         'feeMonth': feeMonth,
         'showCost': showCost,
         'clothesCost': clothesCost,
@@ -144,6 +147,7 @@ class Student {
         disciplines: List<String>.from(j['disciplines'] ?? const []),
         participation: (j['participation'] as num?)?.toDouble() ?? 0,
         monthlyFee: (j['monthlyFee'] as num?)?.toDouble() ?? (j['participation'] as num?)?.toDouble() ?? 0,
+        arrears: (j['arrears'] as num?)?.toDouble() ?? 0,
         feeMonth: j['feeMonth']?.toString() ?? '',
         showCost: (j['showCost'] as num?)?.toDouble() ?? 0,
         clothesCost: (j['clothesCost'] as num?)?.toDouble() ?? 0,
@@ -166,6 +170,7 @@ class _HomePageState extends State<HomePage> {
   final List<ReceiptRecord> receipts = [];
   final List<CashEntry> extraIncome = [];
   final List<CashEntry> expenses = [];
+  final List<Map<String, dynamic>> monthlyReports = [];
   final List<Discipline> disciplines = [
     Discipline('Danza classica', 0),
     Discipline('Danza moderna', 0),
@@ -194,16 +199,20 @@ class _HomePageState extends State<HomePage> {
         ..addAll((jsonDecode(sj) as List)
             .map((x) => Student.fromJson(Map<String, dynamic>.from(x))));
       final currentMonth = _monthKey(DateTime.now());
+      final lastMonth = p.getString('activeMonth') ?? '';
+      if (lastMonth.isNotEmpty && lastMonth != currentMonth) {
+        await _closePreviousMonth(lastMonth, p);
+      }
       for (final student in students) {
         if (student.feeMonth.isEmpty) {
           student.feeMonth = currentMonth;
           if (student.monthlyFee <= 0) student.monthlyFee = student.participation;
         } else if (student.feeMonth != currentMonth) {
-          // La quota mensile si rinnova automaticamente all'inizio del nuovo mese.
           student.feeMonth = currentMonth;
           student.participation = student.monthlyFee;
         }
       }
+      await p.setString('activeMonth', currentMonth);
     }
     if (dj != null) {
       disciplines
@@ -229,7 +238,16 @@ class _HomePageState extends State<HomePage> {
         ..clear()
         ..addAll((jsonDecode(xj) as List).map((x) => CashEntry.fromJson(Map<String, dynamic>.from(x))));
     }
+    final mr = p.getString('monthlyReports');
+    if (mr != null) {
+      monthlyReports
+        ..clear()
+        ..addAll((jsonDecode(mr) as List).map((x) => Map<String, dynamic>.from(x)));
+    }
     if (mounted) setState(() => loading = false);
+    if (lastMonth.isNotEmpty && lastMonth != currentMonth && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showLatestReport());
+    }
   }
 
   String _monthKey(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}';
@@ -241,6 +259,8 @@ class _HomePageState extends State<HomePage> {
     await p.setString('receipts', jsonEncode(receipts.map((r) => r.toJson()).toList()));
     await p.setString('extraIncome', jsonEncode(extraIncome.map((e) => e.toJson()).toList()));
     await p.setString('expenses', jsonEncode(expenses.map((e) => e.toJson()).toList()));
+    await p.setString('monthlyReports', jsonEncode(monthlyReports));
+    await p.setString('activeMonth', _monthKey(DateTime.now()));
   }
 
   Future<Map<String, dynamic>> _backupData() async {
@@ -253,6 +273,99 @@ class _HomePageState extends State<HomePage> {
       'extraIncome': extraIncome.map((e) => e.toJson()).toList(),
       'expenses': expenses.map((e) => e.toJson()).toList(),
     };
+  }
+
+  DateTime _monthStart(String key) {
+    final parts = key.split('-');
+    return DateTime(int.parse(parts[0]), int.parse(parts[1]), 1);
+  }
+
+  String _monthLabel(String key) {
+    final d = _monthStart(key);
+    const names = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+    return '${names[d.month - 1]} ${d.year}';
+  }
+
+  double _paymentsForMonth(Student s, String month) {
+    double total = 0;
+    for (final pay in s.payments) {
+      final iso = DateTime.tryParse(pay.date);
+      DateTime? d = iso;
+      if (d == null) {
+        final parts = pay.date.split('/');
+        if (parts.length == 3) d = DateTime.tryParse('${parts[2]}-${parts[1].padLeft(2,'0')}-${parts[0].padLeft(2,'0')}');
+      }
+      if (d != null && _monthKey(d) == month) total += pay.amount;
+    }
+    return total;
+  }
+
+  Future<void> _closePreviousMonth(String month, SharedPreferences p) async {
+    final totalFees = students.fold<double>(0, (sum, s) => sum + s.monthlyFee);
+    final paidFees = students.fold<double>(0, (sum, s) => sum + _paymentsForMonth(s, month));
+    final extra = extraIncome.where((e) => e.date.startsWith(month)).fold<double>(0, (sum, e) => sum + e.amount);
+    final spent = expenses.where((e) => e.date.startsWith(month)).fold<double>(0, (sum, e) => sum + e.amount);
+    for (final student in students) {
+      final fee = student.monthlyFee > 0 ? student.monthlyFee : student.participation;
+      final paid = _paymentsForMonth(student, month);
+      final due = (fee - paid).clamp(0, double.infinity).toDouble();
+      student.arrears += due;
+    }
+    final report = <String, dynamic>{
+      'month': month,
+      'label': _monthLabel(month),
+      'totalFees': totalFees,
+      'paidFees': paidFees,
+      'extra': extra,
+      'expenses': spent,
+      'net': paidFees + extra - spent,
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+    monthlyReports.removeWhere((r) => r['month']?.toString() == month);
+    monthlyReports.add(report);
+    extraIncome.removeWhere((e) => e.date.startsWith(month));
+    expenses.removeWhere((e) => e.date.startsWith(month));
+    await p.setString('students', jsonEncode(students.map((s) => s.toJson()).toList()));
+    await p.setString('monthlyReports', jsonEncode(monthlyReports));
+    await p.setString('extraIncome', jsonEncode(extraIncome.map((e) => e.toJson()).toList()));
+    await p.setString('expenses', jsonEncode(expenses.map((e) => e.toJson()).toList()));
+  }
+
+  Future<Uint8List> _reportPdf(Map<String, dynamic> r) async {
+    final doc = pw.Document();
+    final label = r['label']?.toString() ?? r['month'].toString();
+    final unpaid = students.where((s) => s.arrears > 0).map((s) => '${s.name}: € ${s.arrears.toStringAsFixed(2)}').toList();
+    doc.addPage(pw.Page(pageFormat: PdfPageFormat.a4, build: (_) => pw.Padding(
+      padding: const pw.EdgeInsets.all(28),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text('Dynamique Ballet Studio', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 8), pw.Text('Resoconto incassi - $label', style: pw.TextStyle(fontSize: 17)),
+        pw.SizedBox(height: 20),
+        pw.Text('Incassi rette: € ${(r['paidFees'] as num).toDouble().toStringAsFixed(2)}'),
+        pw.Text('Incassi extra: € ${(r['extra'] as num).toDouble().toStringAsFixed(2)}'),
+        pw.Text('Spese: - € ${(r['expenses'] as num).toDouble().toStringAsFixed(2)}'),
+        pw.Divider(),
+        pw.Text('Incassato netto: € ${(r['net'] as num).toDouble().toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 20),
+        pw.Text('Insoluti riportati al mese successivo', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        if (unpaid.isEmpty) pw.Text('Nessun insoluto.') else ...unpaid.map((x) => pw.Padding(padding: const pw.EdgeInsets.only(top: 5), child: pw.Text(x))),
+      ],
+    )));
+    return Uint8List.fromList(await doc.save());
+  }
+
+  Future<void> _showLatestReport() async {
+    if (monthlyReports.isEmpty) return;
+    final r = monthlyReports.last;
+    if (!mounted) return;
+    showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+      title: Text('Resoconto ${r['label']}'),
+      content: Text('Incassi rette: € ${(r['paidFees'] as num).toDouble().toStringAsFixed(2)}\nIncassi extra: € ${(r['extra'] as num).toDouble().toStringAsFixed(2)}\nSpese: € ${(r['expenses'] as num).toDouble().toStringAsFixed(2)}\n\nIl resoconto è stato archiviato e gli insoluti sono stati riportati al mese corrente.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CHIUDI')),
+        FilledButton.icon(onPressed: () async { final bytes = await _reportPdf(r); final name = 'resoconto_${r['month']}.pdf'; await Share.shareXFiles([XFile.fromData(bytes, name: name, mimeType: 'application/pdf')], subject: 'Resoconto ${r['label']}'); }, icon: const Icon(Icons.print), label: const Text('STAMPA / CONDIVIDI')),
+      ],
+    ));
   }
 
   Future<void> exportBackup() async {
@@ -490,8 +603,13 @@ class Dashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = students.fold<double>(0, (sum, s) => sum + s.total);
-    final paid = students.fold<double>(0, (sum, s) => sum + s.paid);
+    final currentMonth = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
+    double currentPaid(Student s) => s.payments.fold<double>(0, (sum, p) {
+      final d = DateTime.tryParse(p.date) ?? (() { final x=p.date.split('/'); return x.length==3 ? DateTime.tryParse('${x[2]}-${x[1].padLeft(2,'0')}-${x[0].padLeft(2,'0')}') : null; })();
+      return d != null && '${d.year}-${d.month.toString().padLeft(2,'0')}' == currentMonth ? sum + p.amount : sum;
+    });
+    final total = students.fold<double>(0, (sum, s) => sum + (s.monthlyFee > 0 ? s.monthlyFee : s.participation) + s.arrears + s.showCost + s.clothesCost);
+    final paid = students.fold<double>(0, (sum, s) => sum + currentPaid(s));
     final balance = total - paid;
     final extra = extraIncome.fold<double>(0, (sum, e) => sum + e.amount);
     final spent = expenses.fold<double>(0, (sum, e) => sum + e.amount);
@@ -625,7 +743,7 @@ class _UnpaidMonthlyFeesCard extends StatelessWidget {
     final unpaid = students.where((student) {
       final fee = student.monthlyFee > 0 ? student.monthlyFee : student.participation;
       if (fee <= 0) return false;
-      return _paidThisMonth(student, currentMonth) < fee;
+      return _paidThisMonth(student, currentMonth) < (fee + student.arrears);
     }).toList();
 
     return Card(
@@ -658,7 +776,7 @@ class _UnpaidMonthlyFeesCard extends StatelessWidget {
                               ? student.monthlyFee
                               : student.participation;
                           final paid = _paidThisMonth(student, currentMonth);
-                          final remaining = fee - paid;
+                          final remaining = (fee + student.arrears) - paid;
                           return ListTile(
                             leading: CircleAvatar(
                               backgroundColor: kRed,
@@ -677,7 +795,7 @@ class _UnpaidMonthlyFeesCard extends StatelessWidget {
                             subtitle: Text(
                               paid > 0
                                   ? 'Versato questo mese: € ${paid.toStringAsFixed(2)} • Mancano: € ${remaining.toStringAsFixed(2)}'
-                                  : 'Nessun pagamento registrato questo mese • Retta: € ${fee.toStringAsFixed(2)}',
+                                  : 'Nessun pagamento registrato questo mese • Dovuto: € ${(fee + student.arrears).toStringAsFixed(2)}',
                             ),
                           );
                         },
@@ -1277,6 +1395,7 @@ class _StudentDialogState extends State<StudentDialog> {
                 disciplines: [...selected],
                 participation: valueOf(participation),
                 monthlyFee: valueOf(monthlyFee),
+                arrears: widget.student?.arrears ?? 0,
                 feeMonth: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}',
                 showCost: valueOf(showCost),
                 clothesCost: valueOf(clothes),
