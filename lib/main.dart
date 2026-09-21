@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
@@ -1372,9 +1373,33 @@ class _StudentDialogState extends State<StudentDialog> {
       bytes: bytes,
     );
     await widget.onReceiptCreated(receipt);
+
+    final recipientPhone = phone.text.trim().replaceAll(RegExp(r'[^0-9+]'), '');
+    final whatsappText = 'Ricevuta acconto Dynamique Ballet Studio per ${name.text.trim()}';
+    final whatsappUrl = recipientPhone.isEmpty
+        ? null
+        : Uri.parse('https://wa.me/${recipientPhone.replaceFirst('+', '')}?text=${Uri.encodeComponent(whatsappText)}');
+
+    // Se il numero è presente, apriamo direttamente la chat WhatsApp dell'allievo.
+    // Subito dopo apriamo la condivisione del PDF: su Android l'utente può scegliere
+    // WhatsApp e inviare la ricevuta già pronta. Su iOS WhatsApp non consente
+    // di allegare un PDF tramite il link wa.me, quindi la condivisione del file
+    // avviene tramite il foglio di condivisione del sistema.
+    if (whatsappUrl != null) {
+      try {
+        await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+      } catch (_) {
+        // Se WhatsApp non è installato o il link non è gestibile, continuiamo
+        // comunque con la condivisione del PDF.
+      }
+    }
+
+    await Future<void>.delayed(const Duration(milliseconds: 500));
     await Share.shareXFiles([
       XFile.fromData(bytes, name: 'ricevuta_acconto_$safeName.pdf', mimeType: 'application/pdf'),
-    ], subject: 'Ricevuta acconto - ${name.text.trim()}', text: phone.text.trim().isEmpty ? 'Ricevuta acconto Dynamique Ballet Studio' : 'Ricevuta acconto Dynamique Ballet Studio per ${name.text.trim()} - ${phone.text.trim()}');
+    ], subject: 'Ricevuta acconto - ${name.text.trim()}', text: recipientPhone.isEmpty
+        ? whatsappText
+        : '$whatsappText\nDestinatario WhatsApp: $recipientPhone');
   }
 
   Student _currentStudent() {
