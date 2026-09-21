@@ -492,10 +492,28 @@ class _UnpaidMonthlyFeesCard extends StatelessWidget {
   String _monthKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}';
 
+  DateTime? _parsePaymentDate(String value) {
+    // I pagamenti vengono salvati normalmente come dd/MM/yyyy.
+    // Supportiamo anche il formato ISO yyyy-MM-dd per i dati più vecchi.
+    final iso = DateTime.tryParse(value);
+    if (iso != null) return iso;
+
+    final parts = value.trim().split('/');
+    if (parts.length == 3) {
+      final day = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final year = int.tryParse(parts[2]);
+      if (day != null && month != null && year != null) {
+        return DateTime(year, month, day);
+      }
+    }
+    return null;
+  }
+
   double _paidThisMonth(Student student, String month) {
     double total = 0;
     for (final payment in student.payments) {
-      final parsed = DateTime.tryParse(payment.date);
+      final parsed = _parsePaymentDate(payment.date);
       if (parsed != null && _monthKey(parsed) == month) {
         total += payment.amount;
       }
