@@ -85,8 +85,66 @@ jobs:
           flutter config --enable-windows-desktop
           flutter --version
           flutter build windows --release
-      - name: Upload Windows
+      - name: Create Windows installer script
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          @'
+          #define MyAppName "Gestionale Scuola di Danza"
+          #define MyAppVersion "1.0.0"
+          #define MyAppPublisher "Gestionale Scuola di Danza"
+          #define MyAppExeName "gestionale_scuola_di_danza.exe"
+
+          [Setup]
+          AppId={{7D0B1D7B-7A5C-4B3C-9A9E-7F3E5C2B1A10}
+          AppName={#MyAppName}
+          AppVersion={#MyAppVersion}
+          AppPublisher={#MyAppPublisher}
+          DefaultDirName={autopf}\Gestionale Scuola di Danza
+          DefaultGroupName=Gestionale Scuola di Danza
+          OutputDir=C:\temp\installer-output
+          OutputBaseFilename=Gestionale-Scuola-di-Danza-Setup
+          Compression=lzma2
+          SolidCompression=yes
+          ArchitecturesInstallIn64BitMode=x64
+          UninstallDisplayName={#MyAppName}
+          PrivilegesRequired=admin
+
+          [Files]
+          Source: "C:\temp\dynamique-app\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{group}\Gestionale Scuola di Danza"; Filename: "{app}\{#MyAppExeName}"
+          Name: "{autodesktop}\Gestionale Scuola di Danza"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+          [Tasks]
+          Name: "desktopicon"; Description: "Crea un collegamento sul desktop"; GroupDescription: "Collegamenti aggiuntivi:"
+
+          [Run]
+          Filename: "{app}\{#MyAppExeName}"; Description: "Avvia Gestionale Scuola di Danza"; Flags: nowait postinstall skipifsilent
+          '@ | Set-Content -Encoding UTF8 C:\temp\gestionale-installer.iss
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $iscc = @(
+            "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "Inno Setup 6 (ISCC.exe) non trovato" }
+          New-Item -ItemType Directory -Force -Path C:\temp\installer-output | Out-Null
+          & $iscc C:\temp\gestionale-installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "Creazione installer fallita" }
+
+      - name: Upload Windows portable build
         uses: actions/upload-artifact@v4
         with:
-          name: dynamique-ballet-studio-windows
+          name: gestionale-scuola-di-danza-windows
           path: C:\temp\dynamique-app\build\windows\x64\runner\Release\**
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: gestionale-scuola-di-danza-installer
+          path: C:\temp\installer-output\Gestionale-Scuola-di-Danza-Setup.exe
