@@ -24,6 +24,7 @@ class LicenseGate extends StatefulWidget {
 
 class _LicenseGateState extends State<LicenseGate> {
   bool loading = true;
+  bool firstRun = false;
   bool permanent = false;
   DateTime? expiry;
   final controller = TextEditingController();
@@ -40,22 +41,49 @@ class _LicenseGateState extends State<LicenseGate> {
     permanent = p.getBool('license_permanent') ?? false;
     final raw = p.getString('license_expiry');
     expiry = raw == null ? null : DateTime.tryParse(raw);
-    if (!permanent && expiry == null) {
-      final now = DateTime.now();
-      expiry = DateTime(now.year, now.month + 1, now.day, now.hour, now.minute, now.second);
-      await p.setString('license_expiry', expiry!.toIso8601String());
-    }
+    firstRun = !permanent && expiry == null;
     setState(() => loading = false);
   }
 
   bool get active => permanent || (expiry != null && DateTime.now().isBefore(expiry!));
 
-  Future<void> _unlock() async {
+  Future<void> _startTrial() async {
+    final p = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final newExpiry = DateTime(now.year, now.month + 1, now.day, now.hour, now.minute, now.second);
+    await p.setString('license_expiry', newExpiry.toIso8601String());
+    setState(() {
+      expiry = newExpiry;
+      firstRun = false;
+      error = '';
+    });
+  }
+
+  Future<void> _activatePermanent() async {
+    if (controller.text.trim() != 'Boccie1971') {
+      setState(() => error = 'Password definitiva non valida');
+      return;
+    }
+    final p = await SharedPreferences.getInstance();
+    await p.setBool('license_permanent', true);
+    await p.remove('license_expiry');
+    setState(() {
+      permanent = true;
+      firstRun = false;
+      expiry = null;
+      error = '';
+    });
+    controller.clear();
+  }
+
+  Future<void> _unlockExpired() async {
     final pass = controller.text.trim();
     final p = await SharedPreferences.getInstance();
     if (pass == 'Boccie1971') {
       await p.setBool('license_permanent', true);
-      setState(() { permanent = true; error = ''; });
+      await p.remove('license_expiry');
+      setState(() { permanent = true; expiry = null; error = ''; });
+      controller.clear();
       return;
     }
     if (pass == '10771') {
@@ -69,10 +97,64 @@ class _LicenseGateState extends State<LicenseGate> {
     setState(() => error = 'Password non valida');
   }
 
+  Widget _passwordField(String label) => TextField(
+    controller: controller,
+    obscureText: true,
+    decoration: InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(),
+      errorText: error.isEmpty ? null : error,
+    ),
+    onSubmitted: (_) => firstRun ? _activatePermanent() : _unlockExpired(),
+  );
+
   @override
   Widget build(BuildContext context) {
     if (loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (active) return const HomePage();
+    if (active) return HomePage(permanent: permanent);
+
+    if (firstRun) {
+      return Scaffold(
+        backgroundColor: kGrey,
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Card(
+              margin: const EdgeInsets.all(24),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.school, size: 64, color: kRed),
+                  const SizedBox(height: 16),
+                  const Text('Gestionale Scuola di Danza', textAlign: TextAlign.center, style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  const Text('Scegli come attivare l’app:', textAlign: TextAlign.center),
+                  const SizedBox(height: 20),
+                  SizedBox(width: double.infinity, child: FilledButton.icon(
+                    onPressed: _startTrial,
+                    icon: const Icon(Icons.timer_outlined),
+                    label: const Text('VERSIONE DI PROVA – 1 MESE'),
+                  )),
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  const Align(alignment: Alignment.centerLeft, child: Text('Attivazione definitiva', style: TextStyle(fontWeight: FontWeight.bold))),
+                  const SizedBox(height: 10),
+                  _passwordField('Password definitiva'),
+                  const SizedBox(height: 12),
+                  SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                    onPressed: _activatePermanent,
+                    icon: const Icon(Icons.lock_open),
+                    label: const Text('ATTIVA DEFINITIVAMENTE'),
+                  )),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: kGrey,
       body: Center(
@@ -89,19 +171,10 @@ class _LicenseGateState extends State<LicenseGate> {
                 const SizedBox(height: 10),
                 const Text('Inserire la password per continuare.'),
                 const SizedBox(height: 20),
-                TextField(
-                  controller: controller,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    border: const OutlineInputBorder(),
-                    errorText: error.isEmpty ? null : error,
-                  ),
-                  onSubmitted: (_) => _unlock(),
-                ),
+                _passwordField('Password'),
                 const SizedBox(height: 16),
                 SizedBox(width: double.infinity, child: FilledButton(
-                  onPressed: _unlock,
+                  onPressed: _unlockExpired,
                   child: const Text('CONTINUA'),
                 )),
               ]),
@@ -270,7 +343,8 @@ class Student {
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final bool permanent;
+  const HomePage({super.key, required this.permanent});
   @override
   State<HomePage> createState() => _HomePageState();
 }
@@ -725,7 +799,7 @@ class _HomePageState extends State<HomePage> {
           save();
         },
       ),
-      SettingsPage(
+      if (widget.permanent) SettingsPage(
         teachers: teachers,
         logoBytes: logoBytes,
         schoolName: schoolName,
@@ -760,7 +834,7 @@ class _HomePageState extends State<HomePage> {
                 NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Iscritti'),
                 NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Ricevute'),
                 NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Discipline'),
-                NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Impostazioni'),
+                if (widget.permanent) NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Impostazioni'),
               ],
             ),
           );
@@ -782,7 +856,7 @@ class _HomePageState extends State<HomePage> {
                   NavigationRailDestination(icon: Icon(Icons.people), label: Text('Iscritti')),
                   NavigationRailDestination(icon: Icon(Icons.receipt_long), label: Text('Ricevute')),
                   NavigationRailDestination(icon: Icon(Icons.menu_book), label: Text('Discipline')),
-                  NavigationRailDestination(icon: Icon(Icons.settings), label: Text('Impostazioni')),
+                  if (widget.permanent) NavigationRailDestination(icon: Icon(Icons.settings), label: Text('Impostazioni')),
                 ],
               ),
               Expanded(child: pages[tab]),
