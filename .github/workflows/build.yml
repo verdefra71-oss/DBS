@@ -19,26 +19,26 @@ jobs:
         shell: bash
         run: |
           set -e
-          mkdir -p /tmp/dynamique_source
-          cp -R lib /tmp/dynamique_source/lib
-          cp -R assets /tmp/dynamique_source/assets
-          cp pubspec.yaml /tmp/dynamique_source/pubspec.yaml
-          rm -rf /tmp/dynamique_app
-          mkdir -p /tmp/dynamique_app
-          cd /tmp/dynamique_app
-          flutter create --no-pub --platforms=android,windows --org com.dynamiqueballetstudio --project-name dynamique_ballet_studio .
+          mkdir -p /tmp/gestionale_source
+          cp -R lib /tmp/gestionale_source/lib
+          cp -R assets /tmp/gestionale_source/assets
+          cp pubspec.yaml /tmp/gestionale_source/pubspec.yaml
+          rm -rf /tmp/gestionale_app
+          mkdir -p /tmp/gestionale_app
+          cd /tmp/gestionale_app
+          flutter create --no-pub --platforms=android,windows --org com.gestionalescuoladidanza --project-name gestionale_scuola_di_danza .
           rm -rf lib assets
-          cp -R /tmp/dynamique_source/lib lib
-          cp -R /tmp/dynamique_source/assets assets
-          cp /tmp/dynamique_source/pubspec.yaml pubspec.yaml
+          cp -R /tmp/gestionale_source/lib lib
+          cp -R /tmp/gestionale_source/assets assets
+          cp /tmp/gestionale_source/pubspec.yaml pubspec.yaml
           rm -rf test analysis_options.yaml
           flutter pub get
           flutter build apk --release
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: dynamique-ballet-studio-apk
-          path: /tmp/dynamique_app/build/app/outputs/flutter-apk/app-release.apk
+          name: gestionale-scuola-di-danza-apk
+          path: /tmp/gestionale_app/build/app/outputs/flutter-apk/app-release.apk
 
   windows:
     runs-on: windows-latest
@@ -60,7 +60,7 @@ jobs:
           if (Test-Path C:\temp\dynamique-app) { Remove-Item -Recurse -Force C:\temp\dynamique-app }
           New-Item -ItemType Directory -Force -Path C:\temp\dynamique-app | Out-Null
           Set-Location C:\temp\dynamique-app
-          flutter create --no-pub --platforms=windows --org com.dynamiqueballetstudio --project-name dynamique_ballet_studio .
+          flutter create --no-pub --platforms=windows --org com.gestionalescuoladidanza --project-name gestionale_scuola_di_danza .
           if (Test-Path lib) { Remove-Item -Recurse -Force lib }
           if (Test-Path assets) { Remove-Item -Recurse -Force assets }
           Copy-Item -Recurse -Force C:\temp\dyn-source\lib lib
