@@ -288,6 +288,7 @@ class _HomePageState extends State<HomePage> {
   final List<Discipline> disciplines = [];
   final List<Teacher> teachers = [];
   Uint8List? logoBytes;
+  String schoolName = '';
 
   @override
   void initState() {
@@ -299,6 +300,7 @@ class _HomePageState extends State<HomePage> {
     final p = await SharedPreferences.getInstance();
     final savedLogo = p.getString('logoBytes');
     if (savedLogo != null && savedLogo.isNotEmpty) logoBytes = base64Decode(savedLogo);
+    schoolName = p.getString('schoolName') ?? '';
     appLogoBytes = logoBytes;
     final tj = p.getString('teachers');
     if (tj != null) {
@@ -376,6 +378,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> save() async {
     final p = await SharedPreferences.getInstance();
+    await p.setString('schoolName', schoolName);
+    await p.setString('logoBytes', logoBytes == null ? '' : base64Encode(logoBytes!));
     await p.setString('students', jsonEncode(students.map((s) => s.toJson()).toList()));
     await p.setString('disciplines', jsonEncode(disciplines.map((d) => d.toJson()).toList()));
     await p.setString('receipts', jsonEncode(receipts.map((r) => r.toJson()).toList()));
@@ -393,6 +397,7 @@ class _HomePageState extends State<HomePage> {
       'disciplines': disciplines.map((d) => d.toJson()).toList(),
       'teachers': teachers.map((t) => t.toJson()).toList(),
       'logoBytes': logoBytes == null ? null : base64Encode(logoBytes!),
+      'schoolName': schoolName,
       'receipts': receipts.map((r) => r.toJson()).toList(),
       'extraIncome': extraIncome.map((e) => e.toJson()).toList(),
       'expenses': expenses.map((e) => e.toJson()).toList(),
@@ -563,6 +568,7 @@ class _HomePageState extends State<HomePage> {
       if (data['logoBytes'] != null) {
         try { logoBytes = base64Decode(data['logoBytes'].toString()); } catch (_) {}
       }
+      if (data['schoolName'] != null) schoolName = data['schoolName'].toString();
       final importedReceipts = (data['receipts'] as List? ?? const [])
           .map((x) => ReceiptRecord.fromJson(Map<String, dynamic>.from(x)))
           .toList();
@@ -643,7 +649,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> openStudent([Student? existing]) async {
     final result = await showDialog<Student>(
       context: context,
-      builder: (_) => StudentDialog(student: existing, disciplines: disciplines, onReceiptCreated: (receipt) async { receipts.add(receipt); await save(); if (mounted) setState(() {}); }, onStudentChanged: (updated) async {
+      builder: (_) => StudentDialog(student: existing, disciplines: disciplines, schoolName: schoolName, logoBytes: logoBytes, onReceiptCreated: (receipt) async { receipts.add(receipt); await save(); if (mounted) setState(() {}); }, onStudentChanged: (updated) async {
         if (existing == null) return;
         final index = students.indexWhere((s) => s.id == updated.id);
         if (index >= 0) {
@@ -716,6 +722,26 @@ class _HomePageState extends State<HomePage> {
         disciplines: disciplines,
         onChanged: () {
           setState(() {});
+          save();
+        },
+      ),
+      SettingsPage(
+        teachers: teachers,
+        logoBytes: logoBytes,
+        schoolName: schoolName,
+        onChanged: () {
+          setState(() {});
+          save();
+        },
+        onSchoolNameChanged: (value) {
+          setState(() => schoolName = value);
+          save();
+        },
+        onLogoChanged: (bytes) {
+          setState(() {
+            logoBytes = bytes;
+            appLogoBytes = bytes;
+          });
           save();
         },
       ),
@@ -1329,9 +1355,11 @@ class _GroupedStudentsList extends StatelessWidget {
 class SettingsPage extends StatelessWidget {
   final List<Teacher> teachers;
   final Uint8List? logoBytes;
+  final String schoolName;
+  final ValueChanged<String> onSchoolNameChanged;
   final VoidCallback onChanged;
   final ValueChanged<Uint8List?> onLogoChanged;
-  const SettingsPage({super.key, required this.teachers, required this.logoBytes, required this.onChanged, required this.onLogoChanged});
+  const SettingsPage({super.key, required this.teachers, required this.logoBytes, required this.schoolName, required this.onSchoolNameChanged, required this.onChanged, required this.onLogoChanged});
 
   Future<void> _editTeacher(BuildContext context, {Teacher? teacher}) async {
     final c = TextEditingController(text: teacher?.name ?? '');
@@ -1357,6 +1385,16 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) => Column(children: [
     const Header(title: 'Impostazioni'),
     Expanded(child: ListView(padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 650 ? 12 : 20), children: [
+      Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Nome della scuola', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: schoolName,
+          decoration: const InputDecoration(labelText: 'Nome scuola / associazione', border: OutlineInputBorder()),
+          onChanged: onSchoolNameChanged,
+        ),
+      ]))),
+      const SizedBox(height: 12),
       Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('Logo', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
@@ -1454,9 +1492,11 @@ class DisciplinesPage extends StatelessWidget {
 class StudentDialog extends StatefulWidget {
   final Student? student;
   final List<Discipline> disciplines;
+  final String schoolName;
+  final Uint8List? logoBytes;
   final Future<void> Function(ReceiptRecord receipt) onReceiptCreated;
   final Future<void> Function(Student student)? onStudentChanged;
-  const StudentDialog({super.key, this.student, required this.disciplines, required this.onReceiptCreated, this.onStudentChanged});
+  const StudentDialog({super.key, this.student, required this.disciplines, required this.schoolName, required this.logoBytes, required this.onReceiptCreated, this.onStudentChanged});
   @override
   State<StudentDialog> createState() => _StudentDialogState();
 }
@@ -1538,7 +1578,8 @@ class _StudentDialogState extends State<StudentDialog> {
       build: (_) => pw.Padding(
         padding: const pw.EdgeInsets.all(36),
         child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Text('DYNAMIQUE BALLET STUDIO', style: pw.TextStyle(font: euroFont, fontSize: 22, fontWeight: pw.FontWeight.bold)),
+          if (widget.logoBytes != null) pw.Center(child: pw.Image(pw.MemoryImage(widget.logoBytes!), width: 100, height: 70, fit: pw.BoxFit.contain)),
+          if (widget.schoolName.trim().isNotEmpty) pw.Text(widget.schoolName.trim(), style: pw.TextStyle(font: euroFont, fontSize: 22, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 8),
           pw.Text('Ricevuta acconto', style: pw.TextStyle(font: euroFont, fontSize: 18, fontWeight: pw.FontWeight.bold)),
           pw.Divider(),
@@ -1567,7 +1608,7 @@ class _StudentDialogState extends State<StudentDialog> {
     await widget.onReceiptCreated(receipt);
     await Share.shareXFiles([
       XFile.fromData(bytes, name: 'ricevuta_acconto_$safeName.pdf', mimeType: 'application/pdf'),
-    ], subject: 'Ricevuta acconto - ${name.text.trim()}', text: phone.text.trim().isEmpty ? 'Ricevuta acconto Dynamique Ballet Studio' : 'Ricevuta acconto Dynamique Ballet Studio per ${name.text.trim()} - ${phone.text.trim()}');
+    ], subject: 'Ricevuta acconto - ${name.text.trim()}', text: phone.text.trim().isEmpty ? 'Ricevuta acconto ${widget.schoolName.trim()}' : 'Ricevuta acconto ${widget.schoolName.trim()} per ${name.text.trim()} - ${phone.text.trim()}');
   }
 
   Student _currentStudent() {
