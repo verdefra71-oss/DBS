@@ -1,4 +1,4 @@
-name: Build Dynamique Ballet Studio
+name: Build Gestionale Scuola di Danza
 
 on:
   workflow_dispatch:
