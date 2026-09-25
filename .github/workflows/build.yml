@@ -124,17 +124,26 @@ jobs:
           Filename: "{app}\{#MyAppExeName}"; Description: "Avvia Gestionale Scuola di Danza"; Flags: nowait postinstall skipifsilent
           '@ | Set-Content -Encoding UTF8 C:\temp\gestionale-installer.iss
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          choco install innosetup --yes --no-progress
+          $iscc = @(
+            "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:ChocolateyInstall\bin\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "Inno Setup 6 (ISCC.exe) non trovato dopo l'installazione" }
+          "ISCC_PATH=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Build Windows installer
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $iscc = @(
-            "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe",
-            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
-          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $iscc) { throw "Inno Setup 6 (ISCC.exe) non trovato" }
+          if (-not $env:ISCC_PATH -or -not (Test-Path $env:ISCC_PATH)) { throw "ISCC.exe non disponibile" }
           New-Item -ItemType Directory -Force -Path C:\temp\installer-output | Out-Null
-          & $iscc C:\temp\gestionale-installer.iss
+          & $env:ISCC_PATH C:\temp\gestionale-installer.iss
           if ($LASTEXITCODE -ne 0) { throw "Creazione installer fallita" }
 
       - name: Upload Windows portable build
