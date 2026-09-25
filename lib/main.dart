@@ -14,7 +14,7 @@ const kDark = Color(0xFF424242);
 const kGrey = Color(0xFFF1F1F1);
 Uint8List? appLogoBytes;
 
-void main() => runApp(const DynamiqueApp());
+void main() => runApp(const GestionaleScuolaDiDanzaApp());
 
 class LicenseGate extends StatefulWidget {
   const LicenseGate({super.key});
@@ -116,8 +116,8 @@ class _LicenseGateState extends State<LicenseGate> {
   void dispose() { controller.dispose(); super.dispose(); }
 }
 
-class DynamiqueApp extends StatelessWidget {
-  const DynamiqueApp({super.key});
+class GestionaleScuolaDiDanzaApp extends StatelessWidget {
+  const GestionaleScuolaDiDanzaApp({super.key});
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
