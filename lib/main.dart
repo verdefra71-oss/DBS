@@ -1368,14 +1368,14 @@ class SettingsPage extends StatelessWidget {
           FilledButton.icon(onPressed: () => _pickLogo(context), icon: const Icon(Icons.upload_file), label: const Text('Inserisci logo')),
           if (logoBytes != null) OutlinedButton.icon(onPressed: () => onLogoChanged(null), icon: const Icon(Icons.delete_outline), label: const Text('Elimina logo')),
         ]),
-      ]))),
+      ])),
       const SizedBox(height: 12),
       Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [const Expanded(child: Text('Insegnanti', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold))), FilledButton.icon(onPressed: () => _editTeacher(context), icon: const Icon(Icons.add), label: const Text('Aggiungi'))]),
         const SizedBox(height: 8),
         if (teachers.isEmpty) const Text('Nessun insegnante inserito.'),
         ...teachers.map((t) => ListTile(leading: const Icon(Icons.person, color: kRed), title: Text(t.name), trailing: Wrap(children: [IconButton(onPressed: () => _editTeacher(context, teacher: t), icon: const Icon(Icons.edit, color: kRed)), IconButton(onPressed: () { teachers.remove(t); onChanged(); }, icon: const Icon(Icons.delete_outline))]))),
-      ]))),
+      ])),
     ])),
   ]);
 
