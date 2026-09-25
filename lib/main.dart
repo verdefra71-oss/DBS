@@ -122,7 +122,7 @@ class DynamiqueApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Dynamique Ballet Studio',
+      title: 'Gestionale Scuola di Danza',
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: kGrey,
@@ -478,7 +478,7 @@ class _HomePageState extends State<HomePage> {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
-                  'Dynamique Ballet Studio',
+                  'Gestionale Scuola di Danza',
                   style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
                 ),
                 pw.SizedBox(height: 8),
@@ -538,7 +538,7 @@ class _HomePageState extends State<HomePage> {
     final fileName = 'dynamique_ballet_backup_${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}.json';
     await Share.shareXFiles([
       XFile.fromData(Uint8List.fromList(utf8.encode(json)), name: fileName, mimeType: 'application/json'),
-    ], subject: 'Backup Dynamique Ballet Studio');
+    ], subject: 'Backup Gestionale Scuola di Danza');
   }
 
   Future<void> importBackupMerge() async {
