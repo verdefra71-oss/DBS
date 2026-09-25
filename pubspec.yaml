@@ -20,4 +20,3 @@ flutter:
   assets:
     - assets/fonts/DejaVuSans.ttf
     - assets/euro_symbol.png
-    - assets/logo.jpg
