@@ -829,12 +829,12 @@ class _HomePageState extends State<HomePage> {
             bottomNavigationBar: NavigationBar(
               selectedIndex: tab,
               onDestinationSelected: (i) => setState(() => tab = i),
-              destinations: const [
-                NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Riepilogo'),
-                NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Iscritti'),
-                NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Ricevute'),
-                NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Discipline'),
-                if (widget.permanent) NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Impostazioni'),
+              destinations: [
+                const NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Riepilogo'),
+                const NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Iscritti'),
+                const NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Ricevute'),
+                const NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Discipline'),
+                if (widget.permanent) const NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Impostazioni'),
               ],
             ),
           );
@@ -851,12 +851,12 @@ class _HomePageState extends State<HomePage> {
                 unselectedIconTheme: const IconThemeData(color: Colors.white70),
                 selectedLabelTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 unselectedLabelTextStyle: const TextStyle(color: Colors.white70),
-                destinations: const [
-                  NavigationRailDestination(icon: Icon(Icons.dashboard), label: Text('Riepilogo')),
-                  NavigationRailDestination(icon: Icon(Icons.people), label: Text('Iscritti')),
-                  NavigationRailDestination(icon: Icon(Icons.receipt_long), label: Text('Ricevute')),
-                  NavigationRailDestination(icon: Icon(Icons.menu_book), label: Text('Discipline')),
-                  if (widget.permanent) NavigationRailDestination(icon: Icon(Icons.settings), label: Text('Impostazioni')),
+                destinations: [
+                  const NavigationRailDestination(icon: Icon(Icons.dashboard), label: Text('Riepilogo')),
+                  const NavigationRailDestination(icon: Icon(Icons.people), label: Text('Iscritti')),
+                  const NavigationRailDestination(icon: Icon(Icons.receipt_long), label: Text('Ricevute')),
+                  const NavigationRailDestination(icon: Icon(Icons.menu_book), label: Text('Discipline')),
+                  if (widget.permanent) const NavigationRailDestination(icon: Icon(Icons.settings), label: Text('Impostazioni')),
                 ],
               ),
               Expanded(child: pages[tab]),
