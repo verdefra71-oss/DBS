@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
@@ -13,8 +12,109 @@ import 'package:pdf/pdf.dart';
 const kRed = Color(0xFFC62828);
 const kDark = Color(0xFF424242);
 const kGrey = Color(0xFFF1F1F1);
+Uint8List? appLogoBytes;
 
 void main() => runApp(const DynamiqueApp());
+
+class LicenseGate extends StatefulWidget {
+  const LicenseGate({super.key});
+  @override
+  State<LicenseGate> createState() => _LicenseGateState();
+}
+
+class _LicenseGateState extends State<LicenseGate> {
+  bool loading = true;
+  bool permanent = false;
+  DateTime? expiry;
+  final controller = TextEditingController();
+  String error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLicense();
+  }
+
+  Future<void> _loadLicense() async {
+    final p = await SharedPreferences.getInstance();
+    permanent = p.getBool('license_permanent') ?? false;
+    final raw = p.getString('license_expiry');
+    expiry = raw == null ? null : DateTime.tryParse(raw);
+    if (!permanent && expiry == null) {
+      final now = DateTime.now();
+      expiry = DateTime(now.year, now.month + 1, now.day, now.hour, now.minute, now.second);
+      await p.setString('license_expiry', expiry!.toIso8601String());
+    }
+    setState(() => loading = false);
+  }
+
+  bool get active => permanent || (expiry != null && DateTime.now().isBefore(expiry!));
+
+  Future<void> _unlock() async {
+    final pass = controller.text.trim();
+    final p = await SharedPreferences.getInstance();
+    if (pass == 'Boccie1971') {
+      await p.setBool('license_permanent', true);
+      setState(() { permanent = true; error = ''; });
+      return;
+    }
+    if (pass == '10771') {
+      final now = DateTime.now();
+      final newExpiry = DateTime(now.year, now.month + 1, now.day, now.hour, now.minute, now.second);
+      await p.setString('license_expiry', newExpiry.toIso8601String());
+      setState(() { expiry = newExpiry; error = ''; });
+      controller.clear();
+      return;
+    }
+    setState(() => error = 'Password non valida');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (active) return const HomePage();
+    return Scaffold(
+      backgroundColor: kGrey,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 430),
+          child: Card(
+            margin: const EdgeInsets.all(24),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.lock_clock, size: 64, color: kRed),
+                const SizedBox(height: 16),
+                const Text('SESSIONE SCADUTA', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                const Text('Inserire la password per continuare.'),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: controller,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    border: const OutlineInputBorder(),
+                    errorText: error.isEmpty ? null : error,
+                  ),
+                  onSubmitted: (_) => _unlock(),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(width: double.infinity, child: FilledButton(
+                  onPressed: _unlock,
+                  child: const Text('CONTINUA'),
+                )),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() { controller.dispose(); super.dispose(); }
+}
 
 class DynamiqueApp extends StatelessWidget {
   const DynamiqueApp({super.key});
@@ -29,7 +129,7 @@ class DynamiqueApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: kRed),
         inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
       ),
-      home: const HomePage(),
+      home: const LicenseGate(),
     );
   }
 }
@@ -86,6 +186,17 @@ class Discipline {
         j['name']?.toString() ?? '',
         (j['fee'] as num?)?.toDouble() ?? 0,
       );
+}
+
+class Teacher {
+  String id;
+  String name;
+  Teacher(this.id, this.name);
+  Map<String, dynamic> toJson() => {'id': id, 'name': name};
+  factory Teacher.fromJson(Map<String, dynamic> j) => Teacher(
+    j['id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString(),
+    j['name']?.toString() ?? '',
+  );
 }
 
 class Student {
@@ -172,17 +283,11 @@ class _HomePageState extends State<HomePage> {
   final List<CashEntry> extraIncome = [];
   final List<CashEntry> expenses = [];
   final List<Map<String, dynamic>> monthlyReports = [];
-  final List<Discipline> disciplines = [
-    Discipline('Danza classica', 0),
-    Discipline('Danza moderna', 0),
-    Discipline('Hip Hop', 0),
-    Discipline('Contemporaneo', 0),
-    Discipline('Salsa New York', 0),
-    Discipline('Salsa cubana', 0),
-    Discipline('Bachata', 0),
-    Discipline('Hells', 0),
-    Discipline('Aerial Hoop', 0),
-  ];
+  // Nessuna disciplina preimpostata: l'utente le inserisce manualmente,
+  // una alla volta, dalla sezione "Discipline".
+  final List<Discipline> disciplines = [];
+  final List<Teacher> teachers = [];
+  Uint8List? logoBytes;
 
   @override
   void initState() {
@@ -192,10 +297,26 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
+    final savedLogo = p.getString('logoBytes');
+    if (savedLogo != null && savedLogo.isNotEmpty) logoBytes = base64Decode(savedLogo);
+    appLogoBytes = logoBytes;
+    final tj = p.getString('teachers');
+    if (tj != null) {
+      try { teachers..clear()..addAll((jsonDecode(tj) as List).map((x) => Teacher.fromJson(Map<String, dynamic>.from(x)))); } catch (_) {}
+    }
     final currentMonth = _monthKey(DateTime.now());
     final lastMonth = p.getString('activeMonth') ?? '';
     final sj = p.getString('students');
     final dj = p.getString('disciplines');
+    // Prima apertura di questa versione: elimina le discipline preesistenti
+    // (anche quelle preimpostate della versione precedente). Da questo momento
+    // le discipline verranno mantenute solo se inserite manualmente dall'utente.
+    final disciplinesReset = p.getBool('disciplinesResetV2') ?? false;
+    if (!disciplinesReset) {
+      disciplines.clear();
+      await p.setString('disciplines', '[]');
+      await p.setBool('disciplinesResetV2', true);
+    }
     if (sj != null) {
       students
         ..clear()
@@ -215,7 +336,7 @@ class _HomePageState extends State<HomePage> {
       }
       await p.setString('activeMonth', currentMonth);
     }
-    if (dj != null) {
+    if (disciplinesReset && dj != null) {
       disciplines
         ..clear()
         ..addAll((jsonDecode(dj) as List)
@@ -270,6 +391,8 @@ class _HomePageState extends State<HomePage> {
       'exportedAt': DateTime.now().toIso8601String(),
       'students': students.map((s) => s.toJson()).toList(),
       'disciplines': disciplines.map((d) => d.toJson()).toList(),
+      'teachers': teachers.map((t) => t.toJson()).toList(),
+      'logoBytes': logoBytes == null ? null : base64Encode(logoBytes!),
       'receipts': receipts.map((r) => r.toJson()).toList(),
       'extraIncome': extraIncome.map((e) => e.toJson()).toList(),
       'expenses': expenses.map((e) => e.toJson()).toList(),
@@ -429,6 +552,16 @@ class _HomePageState extends State<HomePage> {
         } else {
           disciplines.add(incoming);
         }
+      }
+      final importedTeachers = (data['teachers'] as List? ?? const [])
+          .map((x) => Teacher.fromJson(Map<String, dynamic>.from(x)))
+          .toList();
+      for (final incoming in importedTeachers) {
+        final idx = teachers.indexWhere((t) => t.id == incoming.id || t.name.trim().toLowerCase() == incoming.name.trim().toLowerCase());
+        if (idx >= 0) { teachers[idx] = incoming; } else { teachers.add(incoming); }
+      }
+      if (data['logoBytes'] != null) {
+        try { logoBytes = base64Decode(data['logoBytes'].toString()); } catch (_) {}
       }
       final importedReceipts = (data['receipts'] as List? ?? const [])
           .map((x) => ReceiptRecord.fromJson(Map<String, dynamic>.from(x)))
@@ -601,6 +734,7 @@ class _HomePageState extends State<HomePage> {
                 NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Iscritti'),
                 NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Ricevute'),
                 NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Discipline'),
+                NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Impostazioni'),
               ],
             ),
           );
@@ -622,6 +756,7 @@ class _HomePageState extends State<HomePage> {
                   NavigationRailDestination(icon: Icon(Icons.people), label: Text('Iscritti')),
                   NavigationRailDestination(icon: Icon(Icons.receipt_long), label: Text('Ricevute')),
                   NavigationRailDestination(icon: Icon(Icons.menu_book), label: Text('Discipline')),
+                  NavigationRailDestination(icon: Icon(Icons.settings), label: Text('Impostazioni')),
                 ],
               ),
               Expanded(child: pages[tab]),
@@ -644,8 +779,10 @@ class Header extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(compact ? 14 : 24, compact ? 10 : 16, compact ? 14 : 24, compact ? 10 : 16),
       child: Row(
         children: [
-          Image.asset('assets/logo.jpg', height: compact ? 44 : 62, width: compact ? 118 : 165, fit: BoxFit.contain),
-          SizedBox(width: compact ? 10 : 18),
+          if (appLogoBytes != null) ...[
+            Image.memory(appLogoBytes!, height: compact ? 44 : 62, width: compact ? 118 : 165, fit: BoxFit.contain),
+            SizedBox(width: compact ? 10 : 18),
+          ],
           Expanded(child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: compact ? 17 : 24, fontWeight: FontWeight.bold))),
         ],
       ),
@@ -1189,6 +1326,61 @@ class _GroupedStudentsList extends StatelessWidget {
   }
 }
 
+class SettingsPage extends StatelessWidget {
+  final List<Teacher> teachers;
+  final Uint8List? logoBytes;
+  final VoidCallback onChanged;
+  final ValueChanged<Uint8List?> onLogoChanged;
+  const SettingsPage({super.key, required this.teachers, required this.logoBytes, required this.onChanged, required this.onLogoChanged});
+
+  Future<void> _editTeacher(BuildContext context, {Teacher? teacher}) async {
+    final c = TextEditingController(text: teacher?.name ?? '');
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: Text(teacher == null ? 'Nuovo insegnante' : 'Modifica insegnante'),
+      content: TextField(controller: c, autofocus: true, decoration: const InputDecoration(labelText: 'Nome e cognome *')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
+        FilledButton(onPressed: () { if (c.text.trim().isEmpty) return; if (teacher == null) teachers.add(Teacher(DateTime.now().microsecondsSinceEpoch.toString(), c.text.trim())); else teacher.name = c.text.trim(); Navigator.pop(ctx, true); }, child: const Text('Salva')),
+      ],
+    ));
+    c.dispose(); if (ok == true) onChanged();
+  }
+
+  Future<void> _pickLogo(BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
+    if (result == null || result.files.single.bytes == null) return;
+    onLogoChanged(Uint8List.fromList(result.files.single.bytes!));
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Logo salvato.')));
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    const Header(title: 'Impostazioni'),
+    Expanded(child: ListView(padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 650 ? 12 : 20), children: [
+      Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Logo', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        if (logoBytes != null) ...[
+          Container(height: 110, alignment: Alignment.center, child: Image.memory(logoBytes!, fit: BoxFit.contain)),
+          const SizedBox(height: 10),
+        ] else const Text('Nessun logo inserito.'),
+        Wrap(spacing: 8, children: [
+          FilledButton.icon(onPressed: () => _pickLogo(context), icon: const Icon(Icons.upload_file), label: const Text('Inserisci logo')),
+          if (logoBytes != null) OutlinedButton.icon(onPressed: () => onLogoChanged(null), icon: const Icon(Icons.delete_outline), label: const Text('Elimina logo')),
+        ]),
+      ])),
+      const SizedBox(height: 12),
+      Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [const Expanded(child: Text('Insegnanti', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold))), FilledButton.icon(onPressed: () => _editTeacher(context), icon: const Icon(Icons.add), label: const Text('Aggiungi'))]),
+        const SizedBox(height: 8),
+        if (teachers.isEmpty) const Text('Nessun insegnante inserito.'),
+        ...teachers.map((t) => ListTile(leading: const Icon(Icons.person, color: kRed), title: Text(t.name), trailing: Wrap(children: [IconButton(onPressed: () => _editTeacher(context, teacher: t), icon: const Icon(Icons.edit, color: kRed)), IconButton(onPressed: () { teachers.remove(t); onChanged(); }, icon: const Icon(Icons.delete_outline))]))),
+      ])),
+    ])),
+  ]);
+
+}
+
 class DisciplinesPage extends StatelessWidget {
   final List<Discipline> disciplines;
   final VoidCallback onChanged;
@@ -1373,33 +1565,9 @@ class _StudentDialogState extends State<StudentDialog> {
       bytes: bytes,
     );
     await widget.onReceiptCreated(receipt);
-
-    final recipientPhone = phone.text.trim().replaceAll(RegExp(r'[^0-9+]'), '');
-    final whatsappText = 'Ricevuta acconto Dynamique Ballet Studio per ${name.text.trim()}';
-    final whatsappUrl = recipientPhone.isEmpty
-        ? null
-        : Uri.parse('https://wa.me/${recipientPhone.replaceFirst('+', '')}?text=${Uri.encodeComponent(whatsappText)}');
-
-    // Se il numero è presente, apriamo direttamente la chat WhatsApp dell'allievo.
-    // Subito dopo apriamo la condivisione del PDF: su Android l'utente può scegliere
-    // WhatsApp e inviare la ricevuta già pronta. Su iOS WhatsApp non consente
-    // di allegare un PDF tramite il link wa.me, quindi la condivisione del file
-    // avviene tramite il foglio di condivisione del sistema.
-    if (whatsappUrl != null) {
-      try {
-        await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
-      } catch (_) {
-        // Se WhatsApp non è installato o il link non è gestibile, continuiamo
-        // comunque con la condivisione del PDF.
-      }
-    }
-
-    await Future<void>.delayed(const Duration(milliseconds: 500));
     await Share.shareXFiles([
       XFile.fromData(bytes, name: 'ricevuta_acconto_$safeName.pdf', mimeType: 'application/pdf'),
-    ], subject: 'Ricevuta acconto - ${name.text.trim()}', text: recipientPhone.isEmpty
-        ? whatsappText
-        : '$whatsappText\nDestinatario WhatsApp: $recipientPhone');
+    ], subject: 'Ricevuta acconto - ${name.text.trim()}', text: phone.text.trim().isEmpty ? 'Ricevuta acconto Dynamique Ballet Studio' : 'Ricevuta acconto Dynamique Ballet Studio per ${name.text.trim()} - ${phone.text.trim()}');
   }
 
   Student _currentStudent() {
