@@ -1785,10 +1785,40 @@ class _StudentDialogState extends State<StudentDialog> {
                     onChanged: (_) => setState(refreshDiscountedFee),
                     decoration: const InputDecoration(labelText: 'Sconto retta (%)', suffixText: '%', helperText: 'Inserisci manualmente la percentuale, oppure lascia vuoto'),
                   ),
-                  TextField(controller: showCost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Costo saggio (\u20AC)')),
+                  TextField(controller: showCost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Quota saggio (\u20AC)')),
                   TextField(controller: clothes, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Vestiti (\u20AC)')),
                 ];
-                return c.maxWidth < 520 ? Column(children: [fields[0], const SizedBox(height: 10), fields[1], const SizedBox(height: 10), fields[2]]) : Row(children: [for (int i=0;i<fields.length;i++) ...[Expanded(child: fields[i]), if(i<fields.length-1) const SizedBox(width: 10)]]);
+                // Mostra sempre tutti i costi, anche nella finestra stretta di Windows.
+                // In precedenza la modalità < 520 px visualizzava solo i primi 3 campi,
+                // facendo sparire il campo Vestiti.
+                return c.maxWidth < 520
+                    ? Column(
+                        children: [
+                          for (int i = 0; i < fields.length; i++) ...[
+                            fields[i],
+                            if (i < fields.length - 1) const SizedBox(height: 10),
+                          ],
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: fields[0]),
+                              const SizedBox(width: 10),
+                              Expanded(child: fields[1]),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(child: fields[2]),
+                              const SizedBox(width: 10),
+                              Expanded(child: fields[3]),
+                            ],
+                          ),
+                        ],
+                      );
               }),
               const SizedBox(height: 18),
               Row(children: [
