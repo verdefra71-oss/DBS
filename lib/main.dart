@@ -281,6 +281,7 @@ class Student {
   List<String> disciplines;
   double participation;
   double monthlyFee;
+  double discountPercent;
   double arrears;
   String feeMonth;
   double showCost;
@@ -296,6 +297,7 @@ class Student {
     this.disciplines = const [],
     this.participation = 0,
     this.monthlyFee = 0,
+    this.discountPercent = 0,
     this.arrears = 0,
     this.feeMonth = '',
     this.showCost = 0,
@@ -316,6 +318,7 @@ class Student {
         'disciplines': disciplines,
         'participation': participation,
         'monthlyFee': monthlyFee,
+        'discountPercent': discountPercent,
         'arrears': arrears,
         'feeMonth': feeMonth,
         'showCost': showCost,
@@ -332,6 +335,7 @@ class Student {
         disciplines: List<String>.from(j['disciplines'] ?? const []),
         participation: (j['participation'] as num?)?.toDouble() ?? 0,
         monthlyFee: (j['monthlyFee'] as num?)?.toDouble() ?? (j['participation'] as num?)?.toDouble() ?? 0,
+        discountPercent: (j['discountPercent'] as num?)?.toDouble() ?? 0,
         arrears: (j['arrears'] as num?)?.toDouble() ?? 0,
         feeMonth: j['feeMonth']?.toString() ?? '',
         showCost: (j['showCost'] as num?)?.toDouble() ?? 0,
@@ -1388,7 +1392,7 @@ class _StudentTile extends StatelessWidget {
   Widget build(BuildContext context) => Card(
     child: ListTile(
       title: Text(student.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text('${student.disciplines.join(' • ')}\nTotale \u20AC ${student.total.toStringAsFixed(2)}  •  Versato \u20AC ${student.paid.toStringAsFixed(2)}  •  Saldo \u20AC ${student.balance.toStringAsFixed(2)}'),
+      subtitle: Text('${student.disciplines.join(' • ')}${student.discountPercent > 0 ? ' • Sconto ${student.discountPercent.toStringAsFixed(0)}%' : ''}\nTotale \u20AC ${student.total.toStringAsFixed(2)}  •  Versato \u20AC ${student.paid.toStringAsFixed(2)}  •  Saldo \u20AC ${student.balance.toStringAsFixed(2)}'),
       isThreeLine: true,
       trailing: Wrap(children: [
         IconButton(onPressed: () => onEdit(student), icon: const Icon(Icons.edit, color: kRed)),
@@ -1582,6 +1586,7 @@ class _StudentDialogState extends State<StudentDialog> {
   late final TextEditingController notes;
   late final TextEditingController participation;
   late final TextEditingController monthlyFee;
+  late final TextEditingController discountPercent;
   late final TextEditingController showCost;
   late final TextEditingController clothes;
   late final TextEditingController payment;
@@ -1598,16 +1603,19 @@ class _StudentDialogState extends State<StudentDialog> {
     notes = TextEditingController(text: s?.notes ?? '');
     final initialMonthlyFee = s?.monthlyFee ?? s?.participation ?? 0;
     monthlyFee = TextEditingController(text: initialMonthlyFee == 0 ? '' : initialMonthlyFee.toStringAsFixed(2));
+    discountPercent = TextEditingController(text: (s?.discountPercent ?? 0) == 0 ? '' : s!.discountPercent.toStringAsFixed(2));
     participation = TextEditingController(text: s == null ? '' : s.participation.toString());
     showCost = TextEditingController(text: s == null ? '' : s.showCost.toString());
     clothes = TextEditingController(text: s == null ? '' : s.clothesCost.toString());
     payment = TextEditingController();
     selected = [...(s?.disciplines ?? const <String>[])];
     payments = [...(s?.payments ?? const <Payment>[])];
-    final automaticFee = selectedMonthlyFee();
-    if (automaticFee > 0) {
-      monthlyFee.text = automaticFee.toStringAsFixed(2);
-      participation.text = automaticFee.toStringAsFixed(2);
+    // Lo sconto NON è preimpostato: per un nuovo allievo il campo resta vuoto.
+    // La retta viene calcolata normalmente dalle discipline e lo sconto viene applicato
+    // solo quando l'utente inserisce manualmente una percentuale.
+    if (s == null) {
+      discountPercent.clear();
+      refreshMonthlyFee();
     }
   }
 
@@ -1622,8 +1630,21 @@ class _StudentDialogState extends State<StudentDialog> {
     return total;
   }
 
+  double discountValue() => valueOf(discountPercent).clamp(0, 100).toDouble();
+
+  double discountedMonthlyFee() {
+    final base = selectedMonthlyFee();
+    return base * (1 - discountValue() / 100);
+  }
+
   void refreshMonthlyFee() {
-    final fee = selectedMonthlyFee();
+    final fee = discountedMonthlyFee();
+    monthlyFee.text = fee == 0 ? '' : fee.toStringAsFixed(2);
+    participation.text = fee == 0 ? '' : fee.toStringAsFixed(2);
+  }
+
+  void refreshDiscountedFee() {
+    final fee = discountedMonthlyFee();
     monthlyFee.text = fee == 0 ? '' : fee.toStringAsFixed(2);
     participation.text = fee == 0 ? '' : fee.toStringAsFixed(2);
   }
@@ -1695,6 +1716,7 @@ class _StudentDialogState extends State<StudentDialog> {
       disciplines: [...selected],
       participation: valueOf(participation),
       monthlyFee: valueOf(monthlyFee),
+      discountPercent: discountValue(),
       feeMonth: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}',
       showCost: valueOf(showCost),
       clothesCost: valueOf(clothes),
@@ -1755,7 +1777,13 @@ class _StudentDialogState extends State<StudentDialog> {
                   TextField(
                     controller: participation,
                     readOnly: true,
-                    decoration: const InputDecoration(labelText: 'Quota mensile (\u20AC)', helperText: 'Calcolata automaticamente dalle discipline selezionate'),
+                    decoration: InputDecoration(labelText: 'Retta mensile finale (\u20AC)', helperText: selectedMonthlyFee() > 0 ? 'Quota base: \u20AC ${selectedMonthlyFee().toStringAsFixed(2)}' : 'Calcolata dalle discipline'),
+                  ),
+                  TextField(
+                    controller: discountPercent,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => setState(refreshDiscountedFee),
+                    decoration: const InputDecoration(labelText: 'Sconto retta (%)', suffixText: '%', helperText: 'Inserisci manualmente la percentuale, oppure lascia vuoto'),
                   ),
                   TextField(controller: showCost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Costo saggio (\u20AC)')),
                   TextField(controller: clothes, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Vestiti (\u20AC)')),
@@ -1827,6 +1855,7 @@ class _StudentDialogState extends State<StudentDialog> {
                 disciplines: [...selected],
                 participation: valueOf(participation),
                 monthlyFee: valueOf(monthlyFee),
+                discountPercent: discountValue(),
                 arrears: widget.student?.arrears ?? 0,
                 feeMonth: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}',
                 showCost: valueOf(showCost),
@@ -1854,6 +1883,7 @@ class _StudentDialogState extends State<StudentDialog> {
     notes.dispose();
     participation.dispose();
     monthlyFee.dispose();
+    discountPercent.dispose();
     showCost.dispose();
     clothes.dispose();
     payment.dispose();
